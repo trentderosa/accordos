@@ -92,7 +92,7 @@ Preview also binds `0.0.0.0:4173` with the same `/api` + `/ws` proxy.
 
 ```
 accordos/
-  frontend/     React + TypeScript PWA (manifest, icons, IndexedDB glance cache)
+  frontend/     React + TypeScript PWA (manifest, icons, IndexedDB glance + trip replica)
   backend/      FastAPI (telemetry, trips, health, voice, storage, api)
   simulator/    Interchangeable TelemetryProvider + demo scenarios
   deploy/       Pi deploy placeholders (Phase 2+)
@@ -104,14 +104,14 @@ accordos/
 
 Trips start from debounced engine-running evidence (RPM + communication), never from speed alone. Summaries (distance, duration, avg/max speed, idle time) land in SQLite; fuel and efficiency scores appear only when inputs/confidence allow.
 
-**Demo:** Cruise (or Auto) → optional Idle / Disconnect / Recover → Parked (~3s) → check parked **Recent trips** or `GET /api/trips`. Details: store doc `docs/trip-intelligence.md` (Cursor Project Context).
+**Demo:** Cruise (or Auto) → optional Idle / Disconnect / Recover → Parked (~3s) → **Recent trips** syncs via `GET /api/sync`; kill backend to confirm offline replica; Export JSON/CSV under the list. Details: `docs/trip-intelligence.md`.
 
 Default DB: `data/accordos.db` (`ACCORDOS_DB` to override; `:memory:` for ephemeral).
 
 ## Scope / limitations
 - Simulated drive cycle only; not real vehicle data.
 - Trip journal is live on the simulator; health / voice / maintenance remain stubs.
-- SQLite schema v1 (trips, samples, checkpoints). IndexedDB still stores last sample + connection glance for offline UI.
+- SQLite schema v2 (trips + sync revisions, samples, checkpoints). IndexedDB stores glance cache and a synced trip replica; JSON/CSV export/restore from the PWA.
 - No Pi deploy, trusted HTTPS, OBD, wake word, Spotify, or maps yet.
 - Google Fonts require network; UI falls back to local fonts offline.
 

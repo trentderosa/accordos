@@ -64,6 +64,7 @@ class TripSummary(BaseModel):
     note: Optional[str] = None
     label: str = "SIMULATED"
     status: Optional[str] = None  # alias of state for UI compatibility
+    revision: Optional[int] = None
 
     def to_api(self) -> dict[str, Any]:
         data = self.model_dump(mode="json")

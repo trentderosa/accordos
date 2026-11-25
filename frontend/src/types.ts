@@ -58,7 +58,10 @@ export interface TripStub {
   state?: TripState | string
   label?: string
   note?: string
+  revision?: number | null
 }
+
+export type TripListSource = 'live' | 'replica' | 'empty'
 
 export interface ScenarioStatus {
   scenario: ScenarioName | string

@@ -6,7 +6,7 @@ import './App.css'
 
 export default function App() {
   const { sample, connection, fromCache, cachedAt } = useTelemetry()
-  const trips = useTrips()
+  const tripState = useTrips()
   const { status, pending, error, setScenario } = useScenario()
 
   return (
@@ -15,7 +15,13 @@ export default function App() {
       connection={connection}
       fromCache={fromCache}
       cachedAt={cachedAt}
-      trips={trips}
+      trips={tripState.trips}
+      tripSource={tripState.source}
+      tripStale={tripState.stale}
+      tripLastSyncedAt={tripState.lastSyncedAt}
+      onExportJson={tripState.exportJson}
+      onExportCsv={tripState.exportCsv}
+      onRestoreFile={tripState.restoreFile}
       scenario={status?.scenario ?? null}
       scenarioPending={pending}
       scenarioError={error}
