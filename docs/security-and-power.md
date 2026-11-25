@@ -7,7 +7,8 @@ Hard rules for Mac LAN testing and Sunday Pi / vehicle work. Read before pluggin
 - AccordOS is designed for a **trusted local network** (home LAN, or a future Pi access point).
 - Dev servers bind `0.0.0.0` so a phone on the same Wi‑Fi can connect. That is **not** an invitation to expose the service.
 - **Do not:** port-forward, put the Pi/Mac on a public IP, use a public reverse proxy, or leave the API on the open internet.
-- CORS allows localhost and **RFC1918** private origins only. There is **no auth** in the current build — treat LAN access as full access.
+- CORS allows localhost and **RFC1918** private origins only. Most endpoints still have **no auth** — treat LAN access as full access.
+- Exception: `POST /api/voice/command` is **local-or-bearer** (loopback free; non-local needs `ACCORDOS_VOICE_TOKEN`). Voice never executes shell or vehicle controls.
 - Prefer SSH with keys over passwords; disable password SSH once keys work.
 - Keep secrets (Wi‑Fi, tokens, future Spotify client secrets) **out of Git**. Deploy placeholders use env files that are not committed.
 - Future: pairing/auth, firewall, origin validation, trusted local HTTPS for PWA secure-context features. Do not “fix” HTTPS with certificate bypass.

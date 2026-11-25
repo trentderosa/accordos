@@ -58,8 +58,11 @@ def _default_db_path() -> Optional[Path]:
 def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
     app = FastAPI(
         title="AccordOS",
-        version="0.4.0",
-        description="Simulator-backed vehicle platform with trip intelligence and health core",
+        version="0.4.1",
+        description=(
+            "Simulator-backed vehicle platform with trip intelligence, "
+            "health core, and deterministic voice intents"
+        ),
         lifespan=lifespan,
     )
     app.add_middleware(
@@ -84,7 +87,7 @@ def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
         dtc_provider=active_provider,
         simulated=True,
     )
-    app.state.voice = VoiceService()
+    app.state.voice = VoiceService(health=app.state.health, trips=app.state.trips)
 
     def _on_sample(sample: TelemetrySample) -> None:
         app.state.trips.ingest(sample)
@@ -94,6 +97,7 @@ def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
         active_provider,
         on_sample=_on_sample,
     )
+    app.state.voice.bind(telemetry=app.state.telemetry)
     app.include_router(router)
 
     @app.get("/")
@@ -102,10 +106,11 @@ def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
             "app": "AccordOS",
             "phase": 4,
             "phase_note": (
-                "Health core on simulator (Phase 4 partial — voice still stub); "
+                "Health + deterministic voice intents on simulator "
+                "(no wake-word training, no paid LLM; audio feasibility gate open); "
                 "Pi hardware still Phase 2"
             ),
-            "api_version": "0.4.0",
+            "api_version": "0.4.1",
             "docs": "/docs",
             "ws": "/ws/telemetry",
             "note": "SIMULATED telemetry — not a real vehicle",
@@ -113,6 +118,12 @@ def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
                 "Bind with ACCORDOS_HOST=0.0.0.0 for same-LAN iPhone access. "
                 "Local network only — not for public internet."
             ),
+            "voice": {
+                "command": "POST /api/voice/command",
+                "briefing": "GET /api/voice/briefing",
+                "auth": "local_or_bearer",
+                "audio_feasibility_gate": "open",
+            },
         }
 
     return app

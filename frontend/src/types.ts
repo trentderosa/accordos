@@ -149,3 +149,65 @@ export interface ScenarioStatus {
   valid?: string[]
   simulated?: boolean
 }
+
+export type VoiceIntent =
+  | 'fuel_level'
+  | 'range_estimate'
+  | 'last_trip'
+  | 'check_engine'
+  | 'navigate_home'
+  | 'pause_spotify'
+  | 'end_session'
+
+export interface VoiceSessionState {
+  active: boolean
+  last_intent?: string | null
+  followup_remaining_s?: number
+  timeout_s?: number
+}
+
+export interface VoiceSessionInfo {
+  session: VoiceSessionState
+  supported_intents: string[]
+  followup_timeout_s: number
+  audio_feasibility_gate: string
+  note: string
+}
+
+export interface VoiceBriefing {
+  ok: boolean
+  kind: string
+  spoken: string
+  lines: string[]
+  fuel_level_pct?: number | null
+  active_dtc_codes?: string[]
+  unavailable?: string[]
+  includes_previous_trip_fuel_cost: boolean
+  simulated?: boolean
+  note?: string
+}
+
+export interface VoiceCommandResult {
+  ok: boolean
+  intent?: VoiceIntent | string | null
+  resolve?: string
+  reply: string
+  text?: string | null
+  prior_intent?: string | null
+  session?: VoiceSessionState
+  shell_executed?: boolean
+  action?: {
+    type?: string
+    destination?: string
+    links?: { waze?: string; apple_maps?: string }
+    launched?: boolean
+    requested?: string
+    executed?: boolean
+    fallback?: string
+  }
+  data?: Record<string, unknown>
+  unavailable?: string[]
+  simulated?: boolean
+  note?: string
+  auth?: { auth?: string; local?: boolean }
+}
