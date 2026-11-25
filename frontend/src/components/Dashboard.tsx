@@ -6,23 +6,31 @@ function fmt(n: number | null | undefined, digits = 0): string {
 }
 
 function modeLabel(mode?: VehicleMode): string {
-  if (mode === 'driving') return 'DRIVING'
-  if (mode === 'parked') return 'PARKED'
-  return 'UNCERTAIN'
+  if (mode === 'driving') return 'Driving'
+  if (mode === 'parked') return 'Parked'
+  return 'Uncertain'
 }
 
 function connectionLabel(c: ConnectionState): string {
   switch (c) {
     case 'live':
-      return 'Connected'
+      return 'Live'
     case 'stale':
-      return 'Stale data'
+      return 'Stale'
     case 'connecting':
-      return 'Connecting…'
+      return 'Connecting'
     default:
-      return 'Disconnected'
+      return 'Offline'
   }
 }
+
+function clampPct(n: number | null | undefined): number {
+  if (n === null || n === undefined || Number.isNaN(n)) return 0
+  return Math.max(0, Math.min(100, n))
+}
+
+/** Soft redline near 6k for visual scale; Phase 1 display only. */
+const RPM_SCALE = 7000
 
 interface Props {
   sample: TelemetrySample | null
@@ -33,45 +41,82 @@ export function Dashboard({ sample, connection }: Props) {
   const mode = sample?.mode ?? 'unknown'
   const driving = mode === 'driving'
   const parked = mode === 'parked'
+  const rpmPct = clampPct(((sample?.rpm ?? 0) / RPM_SCALE) * 100)
+  const fuelPct = clampPct(sample?.fuel_level_pct)
 
   return (
-    <div className={`dash ${driving ? 'dash--driving' : parked ? 'dash--parked' : 'dash--unknown'}`}>
-      <header className="top">
-        <div className="brand">
-          <span className="brand__name">AccordOS</span>
-          <span className="sim-badge" title="Phase 1 uses simulated telemetry only">
+    <div
+      className={`cluster ${driving ? 'cluster--driving' : parked ? 'cluster--parked' : 'cluster--unknown'}`}
+    >
+      <div className="cluster__ambient" aria-hidden="true" />
+
+      <header className="cluster__chrome">
+        <div className="wordmark">
+          <span className="wordmark__name">AccordOS</span>
+          <span className="wordmark__vehicle">2014 Honda Accord</span>
+        </div>
+
+        <div className="chrome-status" aria-label="System status">
+          <span className="sim-tag" title="Phase 1 uses simulated telemetry only">
             SIMULATED
           </span>
-        </div>
-        <div className="status-row">
-          <span className={`pill pill--mode`}>{modeLabel(mode)}</span>
-          <span className={`pill pill--conn pill--${connection}`}>{connectionLabel(connection)}</span>
+          <span className={`conn conn--${connection}`}>
+            <span className="conn__dot" aria-hidden="true" />
+            {connectionLabel(connection)}
+          </span>
+          <span className={`mode mode--${mode}`}>{modeLabel(mode)}</span>
         </div>
       </header>
 
-      <main className="gauges">
-        <div className="gauge gauge--speed">
-          <div className="gauge__value">{fmt(sample?.speed_mph, 0)}</div>
-          <div className="gauge__unit">mph</div>
+      <main className="cluster__stage">
+        <div className="speed">
+          <div className="speed__value">{fmt(sample?.speed_mph, 0)}</div>
+          <div className="speed__unit">mph</div>
         </div>
 
-        <div className="gauge-secondary">
-          <div className="gauge gauge--rpm">
-            <div className="gauge__value gauge__value--md">{fmt(sample?.rpm, 0)}</div>
-            <div className="gauge__unit">RPM</div>
+        <div className="instruments" aria-label="Secondary instruments">
+          <div className="instrument">
+            <div className="instrument__head">
+              <span className="instrument__label">RPM</span>
+              <span className="instrument__readout">{fmt(sample?.rpm, 0)}</span>
+            </div>
+            <div
+              className="bar"
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={RPM_SCALE}
+              aria-valuenow={sample?.rpm ?? 0}
+              aria-label="Engine RPM"
+            >
+              <div className="bar__fill bar__fill--rpm" style={{ width: `${rpmPct}%` }} />
+            </div>
           </div>
-          <div className="gauge gauge--fuel">
-            <div className="gauge__value gauge__value--md">{fmt(sample?.fuel_level_pct, 0)}</div>
-            <div className="gauge__unit">% fuel</div>
+
+          <div className="instrument">
+            <div className="instrument__head">
+              <span className="instrument__label">Fuel</span>
+              <span className="instrument__readout">{fmt(sample?.fuel_level_pct, 0)}%</span>
+            </div>
+            <div
+              className="bar"
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={sample?.fuel_level_pct ?? 0}
+              aria-label="Fuel level"
+            >
+              <div className="bar__fill bar__fill--fuel" style={{ width: `${fuelPct}%` }} />
+            </div>
           </div>
         </div>
       </main>
 
       {parked ? (
-        <section className="parked-panel">
-          <h2>Parked details</h2>
-          <p className="lede">Simulated sensors while the cycle is parked. Trip history and health expand in later phases.</p>
-          <dl className="metrics">
+        <section className="detail" aria-label="Parked details">
+          <p className="detail__lede">
+            Parked cycle — sensors idle. Trip history and health arrive in later phases.
+          </p>
+          <dl className="detail__grid">
             <div>
               <dt>Coolant</dt>
               <dd>{fmt(sample?.coolant_c, 1)} °C</dd>
@@ -91,25 +136,25 @@ export function Dashboard({ sample, connection }: Props) {
           </dl>
         </section>
       ) : (
-        <section className="trip-strip" aria-label="Current trip">
+        <section className="vitals" aria-label="Current vitals">
           <div>
-            <span className="muted">Load</span>
-            <strong>{fmt(sample?.engine_load_pct, 0)}%</strong>
+            <span className="vitals__label">Load</span>
+            <span className="vitals__value">{fmt(sample?.engine_load_pct, 0)}%</span>
           </div>
           <div>
-            <span className="muted">Coolant</span>
-            <strong>{fmt(sample?.coolant_c, 0)}°</strong>
+            <span className="vitals__label">Coolant</span>
+            <span className="vitals__value">{fmt(sample?.coolant_c, 0)}°</span>
           </div>
           <div>
-            <span className="muted">Batt</span>
-            <strong>{fmt(sample?.voltage_v, 1)}V</strong>
+            <span className="vitals__label">Batt</span>
+            <span className="vitals__value">{fmt(sample?.voltage_v, 1)}V</span>
           </div>
         </section>
       )}
 
-      <footer className="foot">
+      <footer className="cluster__foot">
         <span>{sample?.message ?? 'Waiting for simulator…'}</span>
-        <span className="muted">Phase 1 · not a real vehicle</span>
+        <span className="cluster__foot-meta">Phase 1 · not a real vehicle</span>
       </footer>
     </div>
   )
