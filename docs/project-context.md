@@ -27,17 +27,18 @@ Data flow today:
 
 Future OBD swap replaces only the provider; trip/API contracts stay the same. Details: [architecture.md](./architecture.md).
 
-## What’s built (as of voice intents)
+## What’s built (as of Phase 5 light stubs)
 
 - Scaffolded monorepo: `frontend/`, `backend/`, `simulator/`, `tests/`, `deploy/`, `docs/`.
-- Live **SIMULATED** dashboard (driving/parked), connection/stale/cached indicators, demo scenarios.
+- Live **SIMULATED** dashboard (driving/parked), connection/stale/cached indicators, demo scenarios. Quiet Tesla-like cluster (deep charcoal, large white gauges, soft blue accents).
 - Same-LAN iPhone testing via `0.0.0.0` Vite + uvicorn (trusted LAN only).
 - **Trip intelligence (simulator):** state machine, SQLite journal, recovery, sync + IndexedDB replica, export/restore.
 - **Health core (Phase 4):** SQLite-backed `GET /api/health` + `/api/maintenance`, vetted DTC explanations (code ≠ diagnosis), trend hysteresis, parked Vehicle health panel. Never clears codes.
 - **Voice intents (Phase 4 routing):** deterministic local router, ~15s follow-ups, startup briefing, auth-or-local `POST /api/voice/command`, parked Voice lab. No wake-word training, no paid LLM. **Audio feasibility gate open.**
-- Tests: `pytest -q` for simulator, telemetry, trips, sync, health, voice, API.
+- **Infotainment stubs (Phase 5 light):** encoded Waze + Apple Maps deep links; parked Navigate & music shortcuts; Spotify open/Siri fallback; OAuth PKCE **documented only** — no client secrets, no paid APIs. Never fabricates map/police data. Core app works without Spotify.
+- Tests: `pytest -q` for simulator, telemetry, trips, sync, health, voice, infotainment link encoding, API.
 
-See [voice-intents.md](./voice-intents.md), [trip-intelligence.md](./trip-intelligence.md), and [api.md](./api.md).
+See [infotainment.md](./infotainment.md), [voice-intents.md](./voice-intents.md), [trip-intelligence.md](./trip-intelligence.md), and [api.md](./api.md).
 
 ## What’s next
 
@@ -46,7 +47,7 @@ See [voice-intents.md](./voice-intents.md), [trip-intelligence.md](./trip-intell
 | Through Sat Nov 28 | Mac/simulator polish; do **not** require Pi or car. |
 | **Sun Nov 29** | Hardware day — follow [sunday-pi-setup.md](./sunday-pi-setup.md). Inspect/backup microSD, boot verify, network, clone, run backend (+ serve PWA). Optional **read-only** OBD only if a compatible adapter is present and authorized. |
 | After Pi boots cleanly | Trusted local HTTPS, auth/pairing, real PID discovery, power plan. |
-| Later | Wake word / ASR / TTS (after audio gate), verified maps/Spotify integrations. |
+| Later | Wake word / ASR / TTS (after audio gate); verified map launches under iOS gesture rules; Spotify PKCE only with owner approval. |
 
 ## Constraints (non-negotiable)
 

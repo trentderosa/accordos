@@ -1,6 +1,6 @@
 # AccordOS
 
-Offline-first smart vehicle platform for a 2014 Honda Accord. Runs entirely on a MacBook with a **SIMULATED** telemetry provider — no vehicle, Pi, or OBD hardware required. **Trip intelligence** journals simulated drives to SQLite; **health core** explains read-only diagnostic codes and telemetry trends (never clears codes); **voice intents** route typed commands locally (no wake-word training, no paid LLM).
+Offline-first smart vehicle platform for a 2014 Honda Accord. Runs entirely on a MacBook with a **SIMULATED** telemetry provider — no vehicle, Pi, or OBD hardware required. **Trip intelligence** journals simulated drives to SQLite; **health core** explains read-only diagnostic codes and telemetry trends (never clears codes); **voice intents** route typed commands locally (no wake-word training, no paid LLM); **infotainment stubs** provide encoded Waze/Apple Maps deep links and a Spotify open/Siri fallback (no client secrets).
 
 **Sunday (Nov 29) start here → [docs/sunday-pi-setup.md](docs/sunday-pi-setup.md)**  
 (Context + gates: [docs/project-context.md](docs/project-context.md) · safety: [docs/security-and-power.md](docs/security-and-power.md))
@@ -17,6 +17,7 @@ Offline-first smart vehicle platform for a 2014 Honda Accord. Runs entirely on a
 | [docs/security-and-power.md](docs/security-and-power.md) | Local-only network, ignition power, no ECU writes |
 | [docs/trip-intelligence.md](docs/trip-intelligence.md) | Trip state machine, SQLite journal, demo script |
 | [docs/voice-intents.md](docs/voice-intents.md) | Deterministic voice routing, briefing, Voice lab, audio gate |
+| [docs/infotainment.md](docs/infotainment.md) | Waze/Apple Maps deep links, Spotify open/Siri stub, OAuth PKCE path (not wired) |
 | [deploy/README.md](deploy/README.md) | systemd / env placeholders for Pi (no secrets) |
 
 OBD adapter compatibility is **unverified**. These docs are not a shopping list.
@@ -59,7 +60,7 @@ Open http://127.0.0.1:5173 — Vite listens on `0.0.0.0:5173` and proxies `/api`
 You should see a dark charcoal cluster labeled **SIMULATED**, with demo scenario controls:
 **Idle → Cruise → Disconnect → Recover** (plus Parked / Auto) and health demos
 **Healthy / P0420 / Misfire / Overheat / Low V**. Parked mode is never inferred from 0 mph alone.
-In parked mode, open **Vehicle health** for codes, trends, and maintenance reminders, and use **Voice lab** to type intent commands.
+In parked mode, open **Vehicle health** for codes, trends, and maintenance reminders; use **Navigate & music** for Waze/Apple Maps deep links and Spotify open/Siri; and use **Voice lab** to type intent commands.
 
 Force a scenario from the UI buttons, or via API:
 
@@ -138,7 +139,7 @@ Default DB: `data/accordos.db` (`ACCORDOS_DB` to override; `:memory:` for epheme
 - **Audio feasibility gate is open:** iPhone PWA TTS and background playback are unproven — Voice lab is text-first. See [docs/voice-intents.md](docs/voice-intents.md).
 - SQLite schema v3 (trips + sync revisions + diagnostic/trend/maintenance tables). IndexedDB stores glance cache and a synced trip replica; JSON/CSV export/restore from the PWA.
 - Health explains codes with vetted static reference data; codes ≠ diagnoses; AccordOS never clears DTCs.
-- No Pi deploy yet beyond sketches; trusted HTTPS, OBD, wake word, Spotify API, and verified map launches are later. See [docs/sunday-pi-setup.md](docs/sunday-pi-setup.md) and [docs/runbook-mac.md](docs/runbook-mac.md).
+- No Pi deploy yet beyond sketches; trusted HTTPS, OBD, wake word, wired Spotify PKCE, and verified map launches are later. Maps/Spotify today are deep-link / open stubs only — see [docs/infotainment.md](docs/infotainment.md). See [docs/sunday-pi-setup.md](docs/sunday-pi-setup.md) and [docs/runbook-mac.md](docs/runbook-mac.md).
 - Google Fonts require network; UI falls back to local fonts offline.
 - OBD/adapter untested — do not buy hardware from this README.
 

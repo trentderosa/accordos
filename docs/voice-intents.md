@@ -26,8 +26,8 @@ iPhone PWA TTS, autoplay / user-gesture rules, screen lock, backgrounding, and B
 | `range_estimate` | “How far will that get me?” | Unavailable until calibrated — does **not** invent miles |
 | `last_trip` | “How was my last trip?” | Summarizes latest finalized/recovered trip |
 | `check_engine` | “Why is my check-engine light on?” | Explains active DTCs; codes ≠ diagnoses |
-| `navigate_home` | “Navigate home” | Deep-link **stub** (Waze / Apple Maps URLs); does not force-launch |
-| `pause_spotify` | “Pause Spotify” | Stub / fallback message (use Spotify app or Siri) |
+| `navigate_home` | “Navigate home” | Encoded Waze / Apple Maps deep-link **stubs**; does not force-launch; no fabricated map data |
+| `pause_spotify` | “Pause Spotify” | Open Spotify / Siri stub — no API, no client secrets (see [infotainment.md](./infotainment.md)) |
 | `end_session` | “That's all” | Clears follow-up context |
 
 Unknown text → graceful failure. Arbitrary intents are rejected. **Never** maps speech to shell commands.
@@ -81,7 +81,7 @@ In **parked** mode, the cluster shows a quiet **Voice lab** panel: type a comman
 - Custom “Hey Accord” wake model and USB mic on the Pi
 - Offline speech recognition and local TTS pipeline
 - Closing the iPhone PWA background-audio gate
-- Real Spotify OAuth playback control and verified map launches under iOS gesture rules
+- Wired Spotify OAuth PKCE playback control (documented path only today) and verified map launches under iOS gesture rules
 
 ## Try it
 

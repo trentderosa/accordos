@@ -58,10 +58,10 @@ def _default_db_path() -> Optional[Path]:
 def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
     app = FastAPI(
         title="AccordOS",
-        version="0.4.1",
+        version="0.5.0",
         description=(
             "Simulator-backed vehicle platform with trip intelligence, "
-            "health core, and deterministic voice intents"
+            "health core, voice intents, and Phase 5 light infotainment stubs"
         ),
         lifespan=lifespan,
     )
@@ -104,13 +104,13 @@ def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
     async def root():
         return {
             "app": "AccordOS",
-            "phase": 4,
+            "phase": 5,
             "phase_note": (
-                "Health + deterministic voice intents on simulator "
-                "(no wake-word training, no paid LLM; audio feasibility gate open); "
-                "Pi hardware still Phase 2"
+                "Phase 5 light: encoded Waze/Apple Maps deep links + Spotify "
+                "open/Siri stub (no paid APIs, no client secrets); "
+                "health + voice still on simulator; Pi hardware still Phase 2"
             ),
-            "api_version": "0.4.1",
+            "api_version": "0.5.0",
             "docs": "/docs",
             "ws": "/ws/telemetry",
             "note": "SIMULATED telemetry — not a real vehicle",
@@ -118,6 +118,11 @@ def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
                 "Bind with ACCORDOS_HOST=0.0.0.0 for same-LAN iPhone access. "
                 "Local network only — not for public internet."
             ),
+            "infotainment": {
+                "maps": "deep_link_stubs",
+                "spotify": "open_siri_stub",
+                "oauth_pkce": "documented_not_wired",
+            },
             "voice": {
                 "command": "POST /api/voice/command",
                 "briefing": "GET /api/voice/briefing",

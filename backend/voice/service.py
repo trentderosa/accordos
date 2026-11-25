@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Optional, Protocol
 
+from backend.infotainment.links import maps_deep_links, spotify_stub_action
+
 from .briefing import build_startup_briefing
 from .context import SessionContext
 from .intents import SUPPORTED, resolve_command
@@ -24,11 +26,8 @@ class _HealthReader(Protocol):
     def maintenance(self) -> dict[str, Any]: ...
 
 
-# Deep-link stubs (Phase 5 will verify iOS gesture / launch behavior).
-HOME_DEEP_LINKS = {
-    "waze": "https://waze.com/ul?q=Home&navigate=yes",
-    "apple_maps": "http://maps.apple.com/?daddr=Home&dirflg=d",
-}
+# Encoded deep-link stubs — no fabricated map/police data; iOS launch unproven.
+HOME_DEEP_LINKS = maps_deep_links("Home")
 
 
 class VoiceService:
@@ -405,20 +404,19 @@ class VoiceService:
         }
 
     def _pause_spotify(self) -> dict[str, Any]:
+        action = spotify_stub_action(requested="pause")
         return {
             "reply": (
                 "I can't control Spotify from AccordOS yet. "
-                "Pause in the Spotify app or ask Siri for now."
+                "Open Spotify or ask Siri for now — no client secrets in the app."
             ),
             "unavailable": ["spotify_api"],
             "simulated": True,
-            "action": {
-                "type": "spotify_stub",
-                "requested": "pause",
-                "executed": False,
-                "fallback": "Use Spotify app or Siri",
-            },
-            "note": "Spotify API control is Phase 5; stub/fallback only",
+            "action": action,
+            "note": (
+                "Spotify open/Siri stub only; OAuth PKCE documented in "
+                "docs/infotainment.md — not wired; core app works without Spotify"
+            ),
         }
 
     def _end_session(self) -> dict[str, Any]:

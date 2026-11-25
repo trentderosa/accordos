@@ -28,7 +28,7 @@ def test_root(client):
     assert r.status_code == 200
     body = r.json()
     assert body["app"] == "AccordOS"
-    assert body["phase"] == 4
+    assert body["phase"] == 5
     assert "SIMULATED" in body["note"]
     assert "local network" in body.get("lan", "").lower()
 
