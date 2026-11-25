@@ -44,7 +44,7 @@ async def status(request: Request):
     return {
         "app": "AccordOS",
         "phase": 5,
-        "api_version": "0.5.0",
+        "api_version": "0.6.0",
         "connection": svc.connection_status,
         "trip": {
             "current": trips.current_trip(),

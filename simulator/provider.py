@@ -12,8 +12,20 @@ import time
 from datetime import datetime, timezone
 from typing import Literal
 
+from backend.telemetry.allowlist import capability_snapshot
 from backend.telemetry.models import TelemetrySample, VehicleMode
 from backend.telemetry.provider import TelemetryProvider
+
+# Simulator always "supports" the core allowlisted live metrics (fake values).
+_SIM_SUPPORTED_METRICS = (
+    "speed_mph",
+    "rpm",
+    "fuel_level_pct",
+    "coolant_c",
+    "engine_load_pct",
+    "voltage_v",
+    "dtc_codes",
+)
 
 # Drive cycle phase durations (seconds)
 PHASES = (
@@ -93,12 +105,17 @@ class SimulatorProvider(TelemetryProvider):
         self._connected = True
         self._t0 = time.monotonic()
         self._signal_lost = False
+        await self.discover_capabilities()
 
     async def disconnect(self) -> None:
         self._connected = False
 
     def is_connected(self) -> bool:
         return self._connected and not self._signal_lost
+
+    async def discover_capabilities(self) -> dict:
+        """Simulator declares the full allowlisted metric set as available."""
+        return self.capabilities()
 
     def scenario(self) -> dict:
         return {
@@ -149,28 +166,19 @@ class SimulatorProvider(TelemetryProvider):
         return list(self._dtcs)
 
     def capabilities(self) -> dict:
-        return {
-            "provider": self.name,
-            "read_only": True,
-            "simulated": True,
-            "scenarios": list(VALID_SCENARIOS),
-            "metrics": [
-                "speed_mph",
-                "rpm",
-                "fuel_level_pct",
-                "coolant_c",
-                "engine_load_pct",
-                "voltage_v",
-                "dtc_codes",
-            ],
-            "unsupported": ["odometer", "oil_life", "tire_pressure"],
-            "notes": (
-                "Simulator — not real vehicle data. "
-                "DTC scenarios are fake and read-only; AccordOS never clears codes."
-            ),
-            "can_clear_codes": False,
-            "read_dtcs": True,
-        }
+        return capability_snapshot(
+            supported_metrics=_SIM_SUPPORTED_METRICS,
+            provider=self.name,
+            simulated=True,
+            extra={
+                "scenarios": list(VALID_SCENARIOS),
+                "read_dtcs": True,
+                "notes": (
+                    "Simulator — not real vehicle data. "
+                    "DTC scenarios are fake and read-only; AccordOS never clears codes."
+                ),
+            },
+        )
 
     async def read(self) -> TelemetrySample:
         if not self._connected or self._signal_lost:

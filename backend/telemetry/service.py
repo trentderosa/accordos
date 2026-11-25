@@ -54,9 +54,7 @@ class TelemetryService:
             "sample_age_s": age,
             "stale": bool(sample and sample.quality == "stale"),
             "last_error": self._last_error,
-            "simulated": True if self.provider.name == "simulator" else bool(
-                sample.simulated if sample else False
-            ),
+            "simulated": self.provider.name == "simulator",
         }
 
     async def start(self) -> None:

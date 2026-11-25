@@ -149,18 +149,25 @@ pip install -r backend/requirements.txt
 # Trusted LAN only — same pattern as Mac runbook
 export ACCORDOS_HOST=0.0.0.0
 export ACCORDOS_PORT=8000
+export ACCORDOS_PROVIDER=SIMULATOR   # default; use OBD only to exercise the stub
 # Optional: export ACCORDOS_DB=/home/<user>/accordos/data/accordos.db
 
 uvicorn backend.main:app --app-dir . --host 0.0.0.0 --port 8000
 ```
 
+| Env | Day-one guidance |
+|---|---|
+| `ACCORDOS_PROVIDER=SIMULATOR` | **Default.** Full demo UI; root note says SIMULATED. |
+| `ACCORDOS_PROVIDER=OBD` | Stub only until python-OBD is wired — API stays up, telemetry is `adapter not connected`. See [obd-provider.md](./obd-provider.md). |
+
 Smoke check from Mac or phone browser on LAN:
 
-- `http://<pi-ip>:8000/` → JSON root with `"note": "SIMULATED..."`
+- `http://<pi-ip>:8000/` → JSON root with `"provider": "simulator"` (or `"obd"`) and an honest note
 - `http://<pi-ip>:8000/docs` → OpenAPI
-- `http://<pi-ip>:8000/api/status`
+- `http://<pi-ip>:8000/api/status` → `connection.provider` + `provider_connected`
+- `http://<pi-ip>:8000/api/capabilities` → allowlist + `pid_status`
 
-Leave the process in a `tmux`/`screen` session for the day, or install the systemd sketch from [../deploy/README.md](../deploy/README.md) **after** manual success.
+Leave the process in a `tmux`/`screen` session for the day, or install the hardened units from [../deploy/README.md](../deploy/README.md) / `deploy/*.service` **after** manual success.
 
 ---
 
@@ -186,8 +193,9 @@ iPhone Safari: `http://<pi-ip>:5173` (same Wi‑Fi). Expect **SIMULATED** label.
 cd ~/accordos/frontend
 npm install
 npm run build
-# Serve `frontend/dist` with nginx or `python3 -m http.server` is NOT enough for /api proxy.
-# Prefer nginx reverse-proxy to uvicorn (see deploy/README.md) or keep Vite preview:
+# Prefer nginx reverse-proxy to uvicorn (see deploy/README.md).
+# Optional quick static unit (no /api proxy): deploy/accordos-frontend.service
+# Or Vite preview for the day:
 npm run preview -- --host 0.0.0.0 --port 4173
 ```
 
@@ -203,13 +211,13 @@ npm run preview -- --host 0.0.0.0 --port 4173
 2. Desk-test adapter on Pi USB before the car if possible (`lsusb`, dmesg).
 3. In car: ignition-switched accessory power for Pi (see security doc). Confirm outlet dies with ignition.
 4. Plug adapter into OBD-II only when ready to observe; keep sessions short.
-5. Use a **read-only** tool or a future AccordOS OBD provider with an explicit PID allowlist. Until that provider exists, any third-party CLI must be limited to **query/read**.
-6. Record: which PIDs respond, which fail, bus errors, temperatures, voltages.
+5. AccordOS already has `ObdProvider` + `backend/telemetry/allowlist.py`. Until python-OBD is wired, `ACCORDOS_PROVIDER=OBD` reports **adapter not connected** honestly. Any third-party CLI must stay **query/read** only.
+6. Record: which allowlisted PIDs respond, which stay unavailable, bus errors, temperatures, voltages.
 7. Unplug and power down cleanly when done.
 
 **→ Gate G3:** If a tool offers “clear DTC”, “program”, or “actuator test” — refuse and disconnect.
 
-AccordOS still runs on **SimulatorProvider** until an OBD provider is implemented and swapped in. Seeing simulated data on the Pi is success for day one.
+Day-one success: Pi boots, backend on LAN, UI shows **SIMULATED** (or OBD stub unavailable). Live allowlisted PIDs come after adapter + python-OBD behind the same interface — details in [obd-provider.md](./obd-provider.md).
 
 ---
 
@@ -239,4 +247,4 @@ OBD: skipped / adapter model / PIDs seen:
 Blockers / ask owner:
 ```
 
-Next engineering steps after a clean Sunday: systemd unit enabled, local HTTPS plan, OBD provider behind `TelemetryProvider`, resource profiling on Pi 3 B.
+Next engineering steps after a clean Sunday: enable hardened `deploy/accordos-backend.service`, wire python-OBD into `ObdProvider` (keep allowlist), local HTTPS plan, resource profiling on Pi 3 B.

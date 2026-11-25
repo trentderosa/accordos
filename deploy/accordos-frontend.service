@@ -1,0 +1,49 @@
+# Optional static frontend serve — enable only after `npm run build` produced frontend/dist.
+# This unit serves files only; it does NOT reverse-proxy /api or /ws.
+# Prefer nginx (see deploy/README.md) for a single origin. Use this for a quick LAN glance
+# when the phone can reach backend :8000 separately, or while validating the build.
+#
+#   cd /home/pi/accordos/frontend && npm ci && npm run build
+#   sudo cp deploy/accordos-frontend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now accordos-frontend.service
+
+[Unit]
+Description=AccordOS static frontend (optional)
+Documentation=file:///home/pi/accordos/deploy/README.md
+After=network-online.target
+Wants=network-online.target
+# Backend optional — static files work without it; live gauges need API/WS elsewhere
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/accordos/frontend/dist
+EnvironmentFile=-/etc/accordos.env
+Environment=ACCORDOS_FRONTEND_PORT=4173
+# Bound to all interfaces for LAN iPhone testing; firewall still recommended
+ExecStart=/usr/bin/python3 -m http.server ${ACCORDOS_FRONTEND_PORT} --bind 0.0.0.0
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+ReadOnlyPaths=/home/pi/accordos/frontend/dist
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

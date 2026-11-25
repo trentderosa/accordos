@@ -253,8 +253,17 @@ export function Dashboard({
         </div>
 
         <div className="chrome-status" aria-label="System status">
-          <span className="sim-tag" title="Phase 1 uses simulated telemetry only">
-            SIMULATED
+          <span
+            className="sim-tag"
+            title={
+              sample?.simulated === false
+                ? `Provider source: ${sample?.source ?? 'obd'} (live path; adapter may be disconnected)`
+                : 'Simulator telemetry — not a real vehicle'
+            }
+          >
+            {sample?.simulated === false
+              ? (sample?.source === 'obd' ? 'OBD' : 'LIVE')
+              : 'SIMULATED'}
           </span>
           <span
             className={`conn conn--${showCachedGauges ? 'stale' : connection}`}

@@ -1,10 +1,16 @@
-# AccordOS architecture (simulator + trips + health + voice intents)
+# AccordOS architecture (simulator + OBD stub + trips + health + voice)
 
 ## Data flow (today)
 
 ```
-SimulatorProvider → TelemetryService → TripService (state machine)
-       │                  ↓                    ↓
+TelemetryProvider (SIMULATOR | OBD stub)
+       │
+       ├─ SimulatorProvider → drive cycle + demo scenarios
+       └─ ObdProvider stub  → "adapter not connected" (Sunday: python-OBD)
+       │
+       ↓
+TelemetryService → TripService (state machine)
+       │                  ↓
        │       FastAPI REST + WS         SQLite (schema v3)
        │                  ↓                    ↓
        └─ read_dtcs() → HealthService   diagnostics / trends / reminders
@@ -20,7 +26,8 @@ SimulatorProvider → TelemetryService → TripService (state machine)
 
 Root JSON and OpenAPI live on the backend (`/`, `/docs`). Frontend never talks to the vehicle directly.
 
-- `TelemetryProvider` is the swap point for a future read-only OBD adapter (`read_dtcs()` included).
+- `TelemetryProvider` is the swap point (`connect`, `disconnect`, `discover_capabilities`, allowlisted `read`, never write/clear).
+- Provider selection: `ACCORDOS_PROVIDER=SIMULATOR|OBD` via `build_provider()` — see [obd-provider.md](./obd-provider.md).
 - Trip state machine: idle → starting → active → ending → finalized/recovered.
 - SQLite under `backend/storage/` (migrations to v3): trips (+ revision), samples, checkpoints, sync_meta, diagnostic_events, telemetry_trend_samples, trend_state, maintenance_reminders, health_alerts.
 - Sync is Pi-authoritative with monotonic revisions and idempotent upserts by stable trip id.
@@ -35,37 +42,35 @@ Root JSON and OpenAPI live on the backend (`/`, `/docs`). Frontend never talks t
 | Path | Role |
 |---|---|
 | `simulator/` | `SimulatorProvider` — drive cycle + demo scenarios |
-| `backend/telemetry/` | `TelemetryProvider` ABC, `TelemetrySample`, `TelemetryService` (poll + WS fan-out) |
+| `backend/telemetry/` | ABC, allowlist, `ObdProvider` stub, factory, `TelemetryService` |
 | `backend/trips/` | State machine, efficiency scaffold, repository, `TripService` |
 | `backend/storage/` | SQLite `Database` + migrations (v3) |
 | `backend/api/` | REST + WebSocket routes |
 | `backend/health/` | Read-only DTC explanations, trends, maintenance |
 | `backend/voice/` | Deterministic intent router, ~15s context, briefing, local-or-bearer auth |
 | `frontend/` | React PWA dashboard, hooks, IndexedDB replica + glance, Voice lab |
-| `deploy/` | Pi systemd / env placeholders (Phase 2+) |
-| `tests/` | pytest coverage for simulator, trips, sync, health, voice, API |
+| `deploy/` | Hardened systemd unit examples + env placeholders |
+| `tests/` | pytest coverage for simulator, OBD stub, allowlist, trips, sync, health, voice, API |
 
-App wiring: `backend/main.py` → `create_app()` constructs DB, `TripService` (recover on start), `HealthService`, `VoiceService`, `TelemetryService(SimulatorProvider, on_sample=trips+health)`.
+App wiring: `backend/main.py` → `create_app()` constructs DB, `TripService`, `HealthService`, `VoiceService`, `TelemetryService(build_provider(), on_sample=trips+health)`.
 
-## TelemetryProvider swap (simulator → future OBD)
+## TelemetryProvider swap (simulator ↔ OBD)
 
 Contract (`backend/telemetry/provider.py`):
 
 - `connect()` / `disconnect()`
-- `read() → TelemetrySample`
-- `capabilities() → dict` (metrics, `read_only: true`)
+- `discover_capabilities() → dict` (allowlist ∩ supported; unsupported → unavailable)
+- `read() → TelemetrySample` (allowlisted PIDs only)
+- `capabilities() → dict` (sync snapshot; always `read_only: true`, `can_clear_codes: false`)
 - `is_connected()`
 
-**Today:** `SimulatorProvider` (`source="simulator"`, `simulated=True`, scenarios via `/api/simulator/scenario`).
+Allowlist module: `backend/telemetry/allowlist.py` — Mode 01 live metrics + Mode 03 DTC read; forbidden clear/control modes.
 
-**Future:** a read-only OBD provider implementing the same ABC:
+**SIMULATOR (default):** `SimulatorProvider` (`source="simulator"`, `simulated=True`, scenarios via `/api/simulator/scenario`).
 
-- Explicit **allowlist** of diagnostic requests / PIDs.
-- Never clear codes, reset ECUs, or issue control commands.
-- Map unsupported PIDs to `quality="unavailable"` — do not invent values.
-- `create_app(provider=ObdProvider(...))` (or env-selected factory) is the intended injection point; trip engine and API stay unchanged.
+**OBD (stub today):** `ObdProvider` — same ABC; `is_connected()=False`; samples/capabilities report **adapter not connected**; no serial traffic. Sunday: wire python-OBD behind this class without changing trips/API.
 
-`NullProvider` exists as a disconnected placeholder.
+`NullProvider` remains a disconnected placeholder. Injection: `create_app(provider=...)` or env factory.
 
 ## Trip intelligence
 
@@ -82,11 +87,11 @@ Authoritative store is SQLite on the host (Pi later). Phone IndexedDB holds a sy
 
 - Dev: uvicorn + Vite on `0.0.0.0`; CORS = localhost + RFC1918 regex.
 - Phone → Vite (or future nginx) → proxy `/api` and `/ws` to backend.
-- Production Pi sketch: systemd for uvicorn + reverse proxy; still **local-only**. See [security-and-power.md](./security-and-power.md).
+- Production Pi sketch: hardened systemd units for uvicorn + optional static frontend; nginx preferred for single-origin proxy. Still **local-only**. See [security-and-power.md](./security-and-power.md) and [../deploy/README.md](../deploy/README.md).
 
 ## What is intentionally stubbed / gated
 
 - Voice: **intent routing + text Voice lab done**; wake word, ASR, TTS, and iPhone PWA background audio remain open (audio feasibility gate).
 - Maps / Spotify: encoded deep-link + open/Siri **stubs** (see [infotainment.md](./infotainment.md)); verified launches / OAuth PKCE later with owner approval; never fabricate map/police data.
 - Trusted HTTPS CA: later phases.
-- Real OBD: unverified; no provider in-tree yet. Health uses simulated DTC scenarios today.
+- Real OBD hardware: unverified; in-tree stub only until Sunday. Health DTC demos remain simulator scenarios.

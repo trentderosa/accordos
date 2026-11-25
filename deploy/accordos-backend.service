@@ -1,0 +1,56 @@
+# Example unit — copy to /etc/systemd/system/ after manual backend success.
+# Replace User=, Group=, paths, and EnvironmentFile for your Pi user/clone.
+# Do not enable until docs/sunday-pi-setup.md steps succeed by hand.
+#
+#   sudo cp deploy/accordos-backend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now accordos-backend.service
+
+[Unit]
+Description=AccordOS backend (FastAPI / uvicorn)
+Documentation=file:///home/pi/accordos/docs/sunday-pi-setup.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/accordos
+EnvironmentFile=-/etc/accordos.env
+# Defaults if EnvironmentFile is absent — override in /etc/accordos.env
+Environment=ACCORDOS_HOST=0.0.0.0
+Environment=ACCORDOS_PORT=8000
+Environment=ACCORDOS_PROVIDER=SIMULATOR
+Environment=ACCORDOS_DB=/home/pi/accordos/data/accordos.db
+ExecStart=/home/pi/accordos/.venv/bin/uvicorn backend.main:app --app-dir /home/pi/accordos --host ${ACCORDOS_HOST} --port ${ACCORDOS_PORT}
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# --- Hardening (Pi 3 / local LAN only) ---
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+MemoryDenyWriteExecute=false
+# SQLite + optional logs under the clone
+ReadWritePaths=/home/pi/accordos/data
+# Serial/USB OBD later may need PrivateDevices=false and DeviceAllow= — leave closed until then
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Local/trusted network only — never pair with public port-forward
+
+[Install]
+WantedBy=multi-user.target
