@@ -10,6 +10,23 @@ Hardware assumed available: Pi 3 Model B V1.2, 16 GB SanDisk microSD, power cabl
 
 ---
 
+## Current software state (main after PR #6)
+
+As of tip **`11fc4ae`** (merge of [PR #6](https://github.com/trentderosa/accordos/pull/6), Tue Nov 24 / Wed Nov 25 2026 America/New_York):
+
+| Piece | State on `main` |
+|---|---|
+| Default provider | `ACCORDOS_PROVIDER=SIMULATOR` — full demo UI labeled **SIMULATED** |
+| OBD path | `ACCORDOS_PROVIDER=OBD` → **ObdProvider** stub; API stays up; telemetry is **adapter not connected** (no python-OBD yet) |
+| Contract | `TelemetryProvider` discovery + PID allowlist (`backend/telemetry/allowlist.py`) — read-only only |
+| Also shipped | Trip journal/sync, health core, voice intent router, maps/Spotify stubs |
+| Deploy sketches | Hardened `deploy/accordos-backend.service` + optional `accordos-frontend.service` |
+| Tests | `pytest -q` → **105 passed** |
+
+**Sunday success does not require live OBD.** Boot Pi → LAN backend → PWA with **SIMULATED** (or honest OBD stub) is enough. Wire python-OBD only if a compatible adapter is present and Gates G2/G3 are clear. Context: [project-context.md](./project-context.md) · contract: [obd-provider.md](./obd-provider.md).
+
+---
+
 ## Stop-and-ask gates
 
 Stop and ask the owner (or pause the session) before:

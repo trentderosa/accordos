@@ -1,6 +1,50 @@
 # AccordOS — project context
 
-Practical overview for anyone picking up the repo before Sunday Pi work (Nov 29, 2026).
+Practical overview for Sunday Pi work (**Nov 29, 2026**). Soft gate tonight: **Tue Nov 24, 2026 (America/New_York)**.
+
+**Main tip:** `11fc4ae` — merge of [PR #6](https://github.com/trentderosa/accordos/pull/6) (OBD provider interface + allowlist stub). No open feature PRs.
+
+## What’s on main
+
+| Area | On `main` now |
+|---|---|
+| Telemetry | `TelemetryProvider` + **SimulatorProvider** (default) + **ObdProvider** stub (`adapter not connected`) |
+| Switch | `ACCORDOS_PROVIDER=SIMULATOR\|OBD` via factory; PID allowlist module |
+| Trips | SQLite journal, recovery, sync + IndexedDB replica, export/restore |
+| Health | Read-only diagnostics / trends / maintenance; never clears codes |
+| Voice | Deterministic intent router + Voice lab; **no** wake-word / ASR / TTS yet |
+| Infotainment | Waze + Apple Maps deep links; Spotify open/Siri stub (no secrets) |
+| Deploy | Hardened `deploy/accordos-backend.service` + optional frontend unit |
+| Tests | `pytest -q` → **105 passed** (post–PR #6) |
+
+UI is a quiet Tesla-like cluster (deep charcoal, large white gauges, soft blue). Chrome shows **SIMULATED** or **OBD** from provider truth. Same-LAN iPhone path exists (`0.0.0.0` Vite + uvicorn); owner still needs a real-device try.
+
+## Open items
+
+| Item | Status |
+|---|---|
+| **iPhone try** | LAN PWA path ready on Mac; confirm Safari / Add to Home Screen before Sunday if possible |
+| **microSD Sunday** | Reader at school apartment; inspect + backup before any reimage (**Gate G1**) |
+| **Real OBD** | Stub only on main; python-OBD + compatible adapter **unverified** — wire only if present and G2 cleared |
+| **Wake word** | Intent routing shipped; audio feasibility / ASR / TTS still open |
+| **HTTPS** | Deferred until Pi boots cleanly on trusted LAN; no public exposure |
+
+## Doc index
+
+| Doc | Purpose |
+|---|---|
+| [project-context.md](./project-context.md) | This page — goals, main tip, open items |
+| [sunday-pi-setup.md](./sunday-pi-setup.md) | **Nov 29** step-by-step + current software state + stop-and-ask gates |
+| [runbook-mac.md](./runbook-mac.md) | Mac simulator run (backend, frontend, LAN iPhone) |
+| [architecture.md](./architecture.md) | Data flow, modules, SIMULATOR ↔ OBD swap |
+| [obd-provider.md](./obd-provider.md) | Provider contract, allowlist, OBD stub, env switch |
+| [api.md](./api.md) | Endpoints that exist now |
+| [security-and-power.md](./security-and-power.md) | Local-only network, ignition power, no ECU writes |
+| [trip-intelligence.md](./trip-intelligence.md) | Trip state machine, SQLite journal, demo |
+| [voice-intents.md](./voice-intents.md) | Deterministic routing, briefing, Voice lab, audio gate |
+| [infotainment.md](./infotainment.md) | Maps deep links, Spotify stub, OAuth PKCE path (not wired) |
+| [../deploy/README.md](../deploy/README.md) | Systemd units + env placeholders (no secrets) |
+| [../README.md](../README.md) | Repo entry + quick start |
 
 ## Goals
 
@@ -16,40 +60,25 @@ Practical overview for anyone picking up the repo before Sunday Pi work (Nov 29,
 |---|---|
 | Frontend | React + TypeScript PWA (Vite, manifest, service worker, IndexedDB glance) |
 | Backend | Python FastAPI, REST + WebSocket telemetry |
-| Vehicle data | `TelemetryProvider` interface → **SimulatorProvider** today; future read-only OBD |
+| Vehicle data | `TelemetryProvider` → **SimulatorProvider** today; **ObdProvider** stub until real adapter |
 | Persistence | SQLite on host (`data/accordos.db`); phone IndexedDB last-sample cache |
 | Deploy target | Raspberry Pi OS Lite + systemd (Phase 2; sketches in `deploy/`) |
 
-Data flow today:
+Data flow:
 
 `TelemetryProvider (SIMULATOR | OBD stub) → TelemetryService → TripService → SQLite`  
 `→ FastAPI REST/WS → React PWA → IndexedDB glance`
 
-Provider swap via `ACCORDOS_PROVIDER`; trip/API contracts stay the same. Details: [architecture.md](./architecture.md), [obd-provider.md](./obd-provider.md).
-
-## What’s built (as of Phase 2 OBD interface prep)
-
-- Scaffolded monorepo: `frontend/`, `backend/`, `simulator/`, `tests/`, `deploy/`, `docs/`.
-- Live **SIMULATED** dashboard (driving/parked), connection/stale/cached indicators, demo scenarios. Quiet Tesla-like cluster (deep charcoal, large white gauges, soft blue accents). Provider chrome shows **OBD** when the stub is active.
-- Interchangeable `TelemetryProvider`: allowlist module, `ObdProvider` stub (`adapter not connected`), env factory `SIMULATOR`/`OBD`.
-- Same-LAN iPhone testing via `0.0.0.0` Vite + uvicorn (trusted LAN only).
-- **Trip intelligence (simulator):** state machine, SQLite journal, recovery, sync + IndexedDB replica, export/restore.
-- **Health core (Phase 4):** SQLite-backed `GET /api/health` + `/api/maintenance`, vetted DTC explanations (code ≠ diagnosis), trend hysteresis, parked Vehicle health panel. Never clears codes.
-- **Voice intents (Phase 4 routing):** deterministic local router, ~15s follow-ups, startup briefing, auth-or-local `POST /api/voice/command`, parked Voice lab. No wake-word training, no paid LLM. **Audio feasibility gate open.**
-- **Infotainment stubs (Phase 5 light):** encoded Waze + Apple Maps deep links; parked Navigate & music shortcuts; Spotify open/Siri fallback; OAuth PKCE **documented only** — no client secrets, no paid APIs. Never fabricates map/police data. Core app works without Spotify.
-- Hardened `deploy/accordos-backend.service` + optional `accordos-frontend.service`.
-- Tests: `pytest -q` for simulator, allowlist, OBD stub, telemetry, trips, sync, health, voice, infotainment, API.
-
-See [infotainment.md](./infotainment.md), [voice-intents.md](./voice-intents.md), [trip-intelligence.md](./trip-intelligence.md), and [api.md](./api.md).
+Provider swap via `ACCORDOS_PROVIDER`; trip/API contracts stay the same.
 
 ## What’s next
 
 | When | Focus |
 |---|---|
-| Through Sat Nov 28 | Mac/simulator polish; OBD interface already stubbed; do **not** require Pi or car. |
-| **Sun Nov 29** | Hardware day — follow [sunday-pi-setup.md](./sunday-pi-setup.md). Inspect/backup microSD, boot verify, network, clone, run backend (+ serve PWA). Wire python-OBD into `ObdProvider` only if a compatible adapter is present and authorized (read-only allowlist). |
-| After Pi boots cleanly | Trusted local HTTPS, auth/pairing, real PID discovery behind allowlist, power plan. |
-| Later | Wake word / ASR / TTS (after audio gate); verified map launches under iOS gesture rules; Spotify PKCE only with owner approval. |
+| Through Sat Nov 28 | Optional Mac polish / iPhone LAN try; do **not** require Pi or car |
+| **Sun Nov 29** | Hardware day — [sunday-pi-setup.md](./sunday-pi-setup.md). Inspect/backup microSD, boot verify, network, clone `main`, run backend (+ serve PWA). Wire python-OBD into `ObdProvider` only if a compatible adapter is present and authorized (read-only allowlist) |
+| After Pi boots cleanly | Trusted local HTTPS, auth/pairing, real PID discovery behind allowlist, power plan |
+| Later | Wake word / ASR / TTS (after audio gate); verified map launches under iOS gesture rules; Spotify PKCE only with owner approval |
 
 ## Constraints (non-negotiable)
 
