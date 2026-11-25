@@ -5,7 +5,7 @@ import { useTrips } from './hooks/useTrips'
 import './App.css'
 
 export default function App() {
-  const { sample, connection } = useTelemetry()
+  const { sample, connection, fromCache, cachedAt } = useTelemetry()
   const trips = useTrips()
   const { status, pending, error, setScenario } = useScenario()
 
@@ -13,6 +13,8 @@ export default function App() {
     <Dashboard
       sample={sample}
       connection={connection}
+      fromCache={fromCache}
+      cachedAt={cachedAt}
       trips={trips}
       scenario={status?.scenario ?? null}
       scenarioPending={pending}

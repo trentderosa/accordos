@@ -1,11 +1,17 @@
-/** IndexedDB scaffold for offline telemetry / trip cache (Phase 3 sync fills this in). */
+/** IndexedDB cache for offline glance + future Phase 3 sync. */
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-import type { TelemetrySample } from '../types'
+import type { ConnectionState, TelemetrySample } from '../types'
 
-interface CachedSample extends TelemetrySample {
+export interface CachedSample extends TelemetrySample {
   id?: number
   cachedAt: string
+}
+
+export interface GlanceSnapshot {
+  sample: TelemetrySample
+  connection: ConnectionState
+  savedAt: string
 }
 
 interface AccordOSDB extends DBSchema {
@@ -22,6 +28,8 @@ interface AccordOSDB extends DBSchema {
 
 const DB_NAME = 'accordos'
 const DB_VERSION = 1
+const GLANCE_KEY = 'glance_snapshot'
+const MAX_CACHE = 50
 
 let dbPromise: Promise<IDBPDatabase<AccordOSDB>> | null = null
 
@@ -52,9 +60,52 @@ export async function cacheLatestSample(sample: TelemetrySample) {
     cachedAt: new Date().toISOString(),
   })
   const all = await db.getAllKeys('telemetry_cache')
-  if (all.length > 50) {
-    const toDelete = all.slice(0, all.length - 50)
+  if (all.length > MAX_CACHE) {
+    const toDelete = all.slice(0, all.length - MAX_CACHE)
     await Promise.all(toDelete.map((k) => db.delete('telemetry_cache', k)))
+  }
+}
+
+export async function getLatestCachedSample(): Promise<CachedSample | null> {
+  const db = await getDb()
+  const keys = await db.getAllKeys('telemetry_cache')
+  if (keys.length === 0) return null
+  const last = await db.get('telemetry_cache', keys[keys.length - 1]!)
+  return last ?? null
+}
+
+export async function saveGlanceSnapshot(
+  sample: TelemetrySample,
+  connection: ConnectionState,
+) {
+  const snapshot: GlanceSnapshot = {
+    sample,
+    connection,
+    savedAt: new Date().toISOString(),
+  }
+  await setSetting(GLANCE_KEY, JSON.stringify(snapshot))
+  await cacheLatestSample(sample)
+}
+
+export async function getGlanceSnapshot(): Promise<GlanceSnapshot | null> {
+  const raw = await getSetting(GLANCE_KEY)
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as GlanceSnapshot
+      if (parsed?.sample) return parsed
+    } catch {
+      /* fall through */
+    }
+  }
+  const cached = await getLatestCachedSample()
+  if (!cached) return null
+  const { cachedAt, ...rest } = cached
+  const sample: TelemetrySample = { ...rest }
+  delete (sample as { id?: number }).id
+  return {
+    sample,
+    connection: 'disconnected',
+    savedAt: cachedAt,
   }
 }
 

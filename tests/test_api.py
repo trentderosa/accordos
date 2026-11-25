@@ -29,6 +29,32 @@ def test_root(client):
     assert body["app"] == "AccordOS"
     assert body["phase"] == 1
     assert "SIMULATED" in body["note"]
+    assert "local network" in body.get("lan", "").lower()
+
+
+def test_cors_allows_lan_origin(client):
+    origin = "http://192.168.1.42:5173"
+    r = client.options(
+        "/api/status",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert r.status_code in (200, 204)
+    assert r.headers.get("access-control-allow-origin") == origin
+
+
+def test_cors_rejects_public_origin(client):
+    origin = "https://evil.example"
+    r = client.options(
+        "/api/status",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert r.headers.get("access-control-allow-origin") != origin
 
 
 def test_capabilities(client):

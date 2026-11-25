@@ -30,11 +30,49 @@ function connectionLabel(c: ConnectionState): string {
   }
 }
 
-function connectionBanner(c: ConnectionState, sample: TelemetrySample | null): {
+function shortCacheWhen(iso?: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function connectionBanner(
+  c: ConnectionState,
+  sample: TelemetrySample | null,
+  fromCache: boolean,
+  cachedAt: string | null,
+): {
   title: string
   detail: string
 } | null {
   if (c === 'live') return null
+  if (c === 'connecting' && !fromCache) {
+    return {
+      title: 'Connecting',
+      detail: 'Waiting for telemetry stream…',
+    }
+  }
+  if (c === 'stale' && !fromCache) {
+    return {
+      title: 'Stale data',
+      detail: 'Last reading is aging — gauges may lag.',
+    }
+  }
+  if (fromCache && sample && sample.quality !== 'unavailable') {
+    const when = shortCacheWhen(cachedAt)
+    return {
+      title: 'Cached glance',
+      detail: when
+        ? `Not live — showing last saved reading (${when}).`
+        : 'Not live — showing last saved reading from this device.',
+    }
+  }
   if (c === 'connecting') {
     return {
       title: 'Connecting',
@@ -88,6 +126,8 @@ const SCENARIO_BUTTONS: { id: ScenarioName; label: string }[] = [
 interface Props {
   sample: TelemetrySample | null
   connection: ConnectionState
+  fromCache?: boolean
+  cachedAt?: string | null
   trips: TripStub[]
   scenario: string | null
   scenarioPending: boolean
@@ -98,6 +138,8 @@ interface Props {
 export function Dashboard({
   sample,
   connection,
+  fromCache = false,
+  cachedAt = null,
   trips,
   scenario,
   scenarioPending,
@@ -107,10 +149,14 @@ export function Dashboard({
   const mode = sample?.mode ?? 'unknown'
   const driving = mode === 'driving'
   const parked = mode === 'parked'
-  const signalDown = connection === 'disconnected' || sample?.quality === 'unavailable'
+  const noLiveSignal =
+    connection === 'disconnected' || sample?.quality === 'unavailable'
+  // Cached offline glance still shows last numbers — only blank for true no-data signal loss
+  const signalDown = noLiveSignal && !(fromCache && sample && sample.quality !== 'unavailable')
+  const showCachedGauges = Boolean(fromCache && sample && sample.quality !== 'unavailable')
   const rpmPct = clampPct(((sample?.rpm ?? 0) / RPM_SCALE) * 100)
   const fuelPct = clampPct(sample?.fuel_level_pct)
-  const banner = connectionBanner(connection, sample)
+  const banner = connectionBanner(connection, sample, fromCache, cachedAt)
   const activeScenario = scenario ?? 'auto'
 
   return (
@@ -119,7 +165,8 @@ export function Dashboard({
         'cluster',
         driving ? 'cluster--driving' : parked ? 'cluster--parked' : 'cluster--unknown',
         signalDown ? 'cluster--offline' : '',
-        connection === 'stale' ? 'cluster--stale' : '',
+        connection === 'stale' || showCachedGauges ? 'cluster--stale' : '',
+        showCachedGauges ? 'cluster--cached' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -136,9 +183,11 @@ export function Dashboard({
           <span className="sim-tag" title="Phase 1 uses simulated telemetry only">
             SIMULATED
           </span>
-          <span className={`conn conn--${connection}`}>
+          <span
+            className={`conn conn--${showCachedGauges ? 'stale' : connection}`}
+          >
             <span className="conn__dot" aria-hidden="true" />
-            {connectionLabel(connection)}
+            {showCachedGauges ? 'Cached' : connectionLabel(connection)}
           </span>
           <span className={`mode mode--${mode}`}>{modeLabel(mode)}</span>
         </div>
@@ -156,11 +205,15 @@ export function Dashboard({
       ) : null}
 
       <main className="cluster__stage">
-        <div className={`speed ${signalDown ? 'speed--muted' : ''}`}>
+        <div
+          className={`speed ${signalDown || showCachedGauges ? 'speed--muted' : ''}`}
+        >
           <div className={`speed__value ${signalDown ? 'speed__value--offline' : ''}`}>
             {signalDown ? 'NO SIGNAL' : fmt(sample?.speed_mph, 0)}
           </div>
-          <div className="speed__unit">mph</div>
+          <div className="speed__unit">
+            {showCachedGauges ? 'mph · cached' : 'mph'}
+          </div>
         </div>
 
         <div className="instruments" aria-label="Secondary instruments">

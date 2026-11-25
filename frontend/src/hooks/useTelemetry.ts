@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { cacheLatestSample } from '../lib/idb'
+import { getGlanceSnapshot, saveGlanceSnapshot } from '../lib/idb'
 import type { ConnectionState, TelemetrySample } from '../types'
 
 function wsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
   const host = window.location.host
-  // Dev: Vite proxies /ws → backend
+  // Dev: Vite proxies /ws → backend (works for LAN clients via Mac host)
   return `${proto}://${host}/ws/telemetry`
 }
 
@@ -21,12 +21,49 @@ function connectionFromSample(
   return 'live'
 }
 
+function asCachedSample(sample: TelemetrySample): TelemetrySample {
+  return {
+    ...sample,
+    quality: sample.quality === 'unavailable' ? 'unavailable' : 'stale',
+    message: sample.message
+      ? `${sample.message} · cached glance`
+      : 'Cached glance — not live',
+  }
+}
+
 export function useTelemetry() {
   const [sample, setSample] = useState<TelemetrySample | null>(null)
   const [connection, setConnection] = useState<ConnectionState>('connecting')
+  const [fromCache, setFromCache] = useState(false)
+  const [cachedAt, setCachedAt] = useState<string | null>(null)
   const lastAt = useRef<number>(0)
   const wsRef = useRef<WebSocket | null>(null)
   const openRef = useRef(false)
+  const hydratedRef = useRef(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const glance = await getGlanceSnapshot()
+        if (cancelled || !glance || hydratedRef.current) return
+        // Only apply cache if live stream has not already written
+        if (lastAt.current) return
+        hydratedRef.current = true
+        setSample(asCachedSample(glance.sample))
+        setFromCache(true)
+        setCachedAt(glance.savedAt)
+        setConnection('disconnected')
+      } catch {
+        /* IndexedDB unavailable — continue without cache */
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -43,16 +80,24 @@ export function useTelemetry() {
       ws.onopen = () => {
         if (cancelled) return
         openRef.current = true
-        setConnection((c) => (c === 'disconnected' ? 'connecting' : c === 'stale' ? c : 'live'))
+        setConnection((c) =>
+          c === 'disconnected' ? 'connecting' : c === 'stale' ? c : 'live',
+        )
       }
 
       ws.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data) as TelemetrySample
           lastAt.current = Date.now()
+          hydratedRef.current = true
           setSample(data)
-          setConnection(connectionFromSample(data, true))
-          void cacheLatestSample(data)
+          setFromCache(false)
+          setCachedAt(null)
+          const next = connectionFromSample(data, true)
+          setConnection(next)
+          if (data.quality !== 'unavailable') {
+            void saveGlanceSnapshot(data, next)
+          }
         } catch {
           /* ignore malformed */
         }
@@ -62,6 +107,10 @@ export function useTelemetry() {
         openRef.current = false
         if (cancelled) return
         setConnection('disconnected')
+        // Keep last sample visible as an honest cached glance
+        setFromCache(true)
+        setCachedAt(new Date().toISOString())
+        setSample((s) => (s ? asCachedSample(s) : s))
         retry = setTimeout(connect, 1500)
       }
 
@@ -93,5 +142,5 @@ export function useTelemetry() {
     }
   }, [])
 
-  return { sample, connection }
+  return { sample, connection, fromCache, cachedAt }
 }
