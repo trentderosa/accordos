@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
 
 class TripService:
-    def __init__(self) -> None:
+    def __init__(self, *, seed_placeholders: bool = True) -> None:
         self._trips: list[dict[str, Any]] = []
+        if seed_placeholders:
+            self._seed_placeholders()
 
     def list_trips(self) -> list[dict[str, Any]]:
         return list(self._trips)
@@ -39,6 +41,41 @@ class TripService:
             "max_speed_mph": None,
             "simulated": True,
             "status": "stub",
+            "label": "SIMULATED",
         }
         self._trips.append(trip)
         return trip
+
+    def _seed_placeholders(self) -> None:
+        """Static placeholder history for parked-mode demos — not real drives."""
+        now = datetime.now(timezone.utc)
+        self._trips = [
+            {
+                "id": "sim-trip-placeholder-1",
+                "title": "Campus → Apt",
+                "start": (now - timedelta(hours=26)).isoformat(),
+                "end": (now - timedelta(hours=25, minutes=42)).isoformat(),
+                "distance_mi": 4.2,
+                "avg_speed_mph": 18.0,
+                "max_speed_mph": 37.0,
+                "duration_min": 18,
+                "simulated": True,
+                "status": "placeholder",
+                "label": "SIMULATED",
+                "note": "Placeholder — real trip journal arrives in Phase 3",
+            },
+            {
+                "id": "sim-trip-placeholder-2",
+                "title": "Errand loop",
+                "start": (now - timedelta(days=3, hours=2)).isoformat(),
+                "end": (now - timedelta(days=3, hours=1, minutes=35)).isoformat(),
+                "distance_mi": 6.8,
+                "avg_speed_mph": 22.0,
+                "max_speed_mph": 41.0,
+                "duration_min": 25,
+                "simulated": True,
+                "status": "placeholder",
+                "label": "SIMULATED",
+                "note": "Placeholder — real trip journal arrives in Phase 3",
+            },
+        ]

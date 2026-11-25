@@ -1,7 +1,8 @@
 """Simulated drive-cycle telemetry provider.
 
 Interchangeable with a future OBD provider via TelemetryProvider.
-Produces a repeating cycle: parked → start → accelerate → cruise → decelerate → park.
+Default cycle: parked → start → accelerate → cruise → decelerate → idle.
+Demo scenarios can pin idle / cruise / parked / disconnect / recover.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 import math
 import time
 from datetime import datetime, timezone
+from typing import Literal
 
 from backend.telemetry.models import TelemetrySample, VehicleMode
 from backend.telemetry.provider import TelemetryProvider
@@ -23,6 +25,9 @@ PHASES = (
     ("idle", 4.0),
 )
 CYCLE_LEN = sum(p[1] for p in PHASES)
+
+ScenarioName = Literal["auto", "parked", "idle", "cruise", "disconnect", "recover"]
+VALID_SCENARIOS = ("auto", "parked", "idle", "cruise", "disconnect", "recover")
 
 
 def _phase_at(t: float) -> tuple[str, float]:
@@ -46,22 +51,64 @@ class SimulatorProvider(TelemetryProvider):
         self._connected = False
         self._t0 = time.monotonic() - seed_offset
         self._fuel = 62.0  # percent
+        self._scenario: ScenarioName = "auto"
+        self._signal_lost = False
+        self._elapsed_hold: float | None = None
 
     async def connect(self) -> None:
         self._connected = True
         self._t0 = time.monotonic()
+        self._signal_lost = False
 
     async def disconnect(self) -> None:
         self._connected = False
 
     def is_connected(self) -> bool:
-        return self._connected
+        return self._connected and not self._signal_lost
+
+    def scenario(self) -> dict:
+        return {
+            "scenario": self._scenario,
+            "signal_lost": self._signal_lost,
+            "valid": list(VALID_SCENARIOS),
+            "simulated": True,
+        }
+
+    def set_scenario(self, name: str) -> dict:
+        key = (name or "").strip().lower()
+        if key not in VALID_SCENARIOS:
+            raise ValueError(f"Unknown scenario '{name}'. Valid: {', '.join(VALID_SCENARIOS)}")
+
+        if key == "recover":
+            # Resume auto cycle from where we left off (or restart if unknown).
+            if self._elapsed_hold is not None:
+                self._t0 = time.monotonic() - self._elapsed_hold
+            else:
+                self._t0 = time.monotonic()
+            self._elapsed_hold = None
+            self._signal_lost = False
+            self._scenario = "auto"
+        elif key == "disconnect":
+            if not self._signal_lost:
+                self._elapsed_hold = time.monotonic() - self._t0
+            self._signal_lost = True
+            self._scenario = "disconnect"
+        else:
+            self._signal_lost = False
+            self._elapsed_hold = None
+            self._scenario = key  # type: ignore[assignment]
+            # Pin scenario start so demos are immediate and stable.
+            if key != "auto":
+                self._t0 = time.monotonic()
+
+        return self.scenario()
 
     def capabilities(self) -> dict:
         return {
             "provider": self.name,
             "read_only": True,
             "simulated": True,
+            "scenarios": list(VALID_SCENARIOS),
             "metrics": [
                 "speed_mph",
                 "rpm",
@@ -75,16 +122,21 @@ class SimulatorProvider(TelemetryProvider):
         }
 
     async def read(self) -> TelemetrySample:
-        if not self._connected:
+        if not self._connected or self._signal_lost:
             return TelemetrySample(
                 quality="unavailable",
                 source="simulator",
                 simulated=True,
-                message="Simulator not connected",
+                mode=VehicleMode.UNKNOWN,
+                message=(
+                    "SIMULATED · disconnect — telemetry signal lost"
+                    if self._signal_lost
+                    else "Simulator not connected"
+                ),
             )
 
         elapsed = time.monotonic() - self._t0
-        phase, p = _phase_at(elapsed)
+        phase, p = self._resolve_phase(elapsed)
         speed, rpm, load, mode = self._kinematics(phase, p)
 
         # Slow fuel burn while moving
@@ -93,6 +145,7 @@ class SimulatorProvider(TelemetryProvider):
         coolant = 85.0 if mode != VehicleMode.PARKED else _lerp(25.0, 70.0, min(1.0, elapsed / 30.0))
         voltage = 14.2 if rpm and rpm > 500 else 12.4
 
+        label = phase if self._scenario == "auto" else self._scenario
         return TelemetrySample(
             timestamp=datetime.now(timezone.utc),
             source="simulator",
@@ -105,8 +158,17 @@ class SimulatorProvider(TelemetryProvider):
             voltage_v=round(voltage, 1),
             mode=mode,
             simulated=True,
-            message=f"SIMULATED · {phase}",
+            message=f"SIMULATED · {label}",
         )
+
+    def _resolve_phase(self, elapsed: float) -> tuple[str, float]:
+        if self._scenario == "parked":
+            return "parked", min(1.0, elapsed / 4.0)
+        if self._scenario == "idle":
+            return "idle", min(1.0, elapsed / 4.0)
+        if self._scenario == "cruise":
+            return "cruise", (elapsed % 12.0) / 12.0
+        return _phase_at(elapsed)
 
     @staticmethod
     def _kinematics(

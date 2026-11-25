@@ -32,7 +32,18 @@ npm run dev
 
 Open http://127.0.0.1:5173 — Vite proxies `/api` and `/ws` to the backend.
 
-You should see a dark dashboard labeled **SIMULATED**, cycling through parked → driving → idle. Disconnect the backend to verify the connection indicator.
+You should see a dark charcoal cluster labeled **SIMULATED**, with demo scenario controls:
+**Idle → Cruise → Disconnect → Recover** (plus Parked / Auto). Parked mode is never inferred from 0 mph alone.
+
+Force a scenario from the UI buttons, or via API:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/simulator/scenario \
+  -H 'Content-Type: application/json' \
+  -d '{"scenario":"disconnect"}'
+```
+
+Valid scenarios: `auto`, `parked`, `idle`, `cruise`, `disconnect`, `recover`.
 
 ### Tests
 
@@ -54,7 +65,7 @@ cd frontend && npm run build && npm run preview
 accordos/
   frontend/     React + TypeScript PWA
   backend/      FastAPI (telemetry, trips, health, voice, storage, api)
-  simulator/    Interchangeable TelemetryProvider
+  simulator/    Interchangeable TelemetryProvider + demo scenarios
   deploy/       Pi deploy placeholders (Phase 2+)
   tests/
   docs/
@@ -62,7 +73,7 @@ accordos/
 
 ## Phase 1 scope / limitations
 - Simulated drive cycle only; not real vehicle data.
-- Trip / health / voice / maintenance endpoints are stubs.
+- Trip / health / voice / maintenance endpoints are stubs (parked UI shows placeholder history).
 - SQLite facade exists (schema v0); persistence is Phase 3.
 - No Pi deploy, HTTPS, OBD, wake word, Spotify, or maps yet.
 - Google Fonts require network; UI falls back to local fonts offline.

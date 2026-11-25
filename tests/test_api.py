@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -32,7 +34,9 @@ def test_root(client):
 def test_capabilities(client):
     r = client.get("/api/capabilities")
     assert r.status_code == 200
-    assert r.json()["simulated"] is True
+    body = r.json()
+    assert body["simulated"] is True
+    assert "disconnect" in body["scenarios"]
 
 
 def test_status(client):
@@ -44,9 +48,6 @@ def test_status(client):
 
 
 def test_telemetry_latest_simulated(client):
-    # Allow poll loop to produce a sample
-    import time
-
     time.sleep(0.4)
     r = client.get("/api/telemetry/latest")
     assert r.status_code == 200
@@ -57,7 +58,10 @@ def test_telemetry_latest_simulated(client):
 def test_health_and_maintenance_stubs(client):
     assert client.get("/api/health").status_code == 200
     assert client.get("/api/maintenance").status_code == 200
-    assert client.get("/api/trips").json()["simulated"] is True
+    trips = client.get("/api/trips").json()
+    assert trips["simulated"] is True
+    assert len(trips["trips"]) >= 1
+    assert all(t.get("simulated") for t in trips["trips"])
     assert client.get("/api/sync").status_code == 200
 
 
@@ -80,6 +84,53 @@ def test_websocket_streams_simulated():
             msg = ws.receive_json()
             assert msg.get("simulated") is True or msg.get("label") == "SIMULATED"
 
+
+def test_scenario_controls_idle_cruise_disconnect_recover(client):
+    get0 = client.get("/api/simulator/scenario")
+    assert get0.status_code == 200
+    assert get0.json()["scenario"] == "auto"
+
+    idle = client.post("/api/simulator/scenario", json={"scenario": "idle"})
+    assert idle.status_code == 200
+    assert idle.json()["scenario"] == "idle"
+    time.sleep(0.35)
+    sample_idle = client.get("/api/telemetry/latest").json()
+    assert sample_idle.get("mode") == "unknown"
+    assert sample_idle.get("speed_mph") == 0.0
+
+    cruise = client.post("/api/simulator/scenario", json={"scenario": "cruise"})
+    assert cruise.status_code == 200
+    time.sleep(0.35)
+    sample_cruise = client.get("/api/telemetry/latest").json()
+    assert sample_cruise.get("mode") == "driving"
+    assert (sample_cruise.get("speed_mph") or 0) > 40
+
+    lost = client.post("/api/simulator/scenario", json={"scenario": "disconnect"})
+    assert lost.status_code == 200
+    assert lost.json()["signal_lost"] is True
+    time.sleep(0.35)
+    sample_lost = client.get("/api/telemetry/latest").json()
+    assert sample_lost.get("quality") == "unavailable"
+    assert sample_lost.get("simulated") is True
+
+    recover = client.post("/api/simulator/scenario", json={"scenario": "recover"})
+    assert recover.status_code == 200
+    assert recover.json()["scenario"] == "auto"
+    assert recover.json()["signal_lost"] is False
+    time.sleep(0.35)
+    sample_ok = client.get("/api/telemetry/latest").json()
+    assert sample_ok.get("quality") == "good"
+
+
+def test_scenario_parked_and_invalid(client):
+    parked = client.post("/api/simulator/scenario", json={"scenario": "parked"})
+    assert parked.status_code == 200
+    time.sleep(0.35)
+    sample = client.get("/api/telemetry/latest").json()
+    assert sample.get("mode") == "parked"
+
+    bad = client.post("/api/simulator/scenario", json={"scenario": "boost"})
+    assert bad.status_code == 400
 
 
 def test_storage_schema_version():

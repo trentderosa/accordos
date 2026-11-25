@@ -18,3 +18,33 @@ export interface TelemetrySample {
 }
 
 export type ConnectionState = 'connecting' | 'live' | 'stale' | 'disconnected'
+
+export type ScenarioName =
+  | 'auto'
+  | 'parked'
+  | 'idle'
+  | 'cruise'
+  | 'disconnect'
+  | 'recover'
+
+export interface TripStub {
+  id: string
+  title?: string
+  start?: string
+  end?: string | null
+  distance_mi?: number | null
+  avg_speed_mph?: number | null
+  max_speed_mph?: number | null
+  duration_min?: number | null
+  simulated?: boolean
+  status?: string
+  label?: string
+  note?: string
+}
+
+export interface ScenarioStatus {
+  scenario: ScenarioName | string
+  signal_lost?: boolean
+  valid?: string[]
+  simulated?: boolean
+}

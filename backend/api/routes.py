@@ -7,12 +7,18 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from simulator.provider import SimulatorProvider
+
 router = APIRouter()
 
 
 class VoiceCommand(BaseModel):
     intent: str = Field(..., min_length=1, max_length=64)
     text: Optional[str] = Field(default=None, max_length=256)
+
+
+class ScenarioBody(BaseModel):
+    scenario: str = Field(..., min_length=1, max_length=32)
 
 
 @router.get("/api/capabilities")
@@ -78,6 +84,26 @@ async def maintenance(request: Request):
 @router.post("/api/voice/command")
 async def voice_command(body: VoiceCommand, request: Request):
     return request.app.state.voice.handle(body.intent, body.text)
+
+
+def _simulator(request: Request) -> SimulatorProvider:
+    provider = request.app.state.telemetry.provider
+    if not isinstance(provider, SimulatorProvider):
+        raise HTTPException(status_code=400, detail="Scenario controls require the simulator provider")
+    return provider
+
+
+@router.get("/api/simulator/scenario")
+async def get_scenario(request: Request):
+    return _simulator(request).scenario()
+
+
+@router.post("/api/simulator/scenario")
+async def set_scenario(body: ScenarioBody, request: Request):
+    try:
+        return _simulator(request).set_scenario(body.scenario)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.websocket("/ws/telemetry")
