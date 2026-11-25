@@ -33,13 +33,17 @@ async def status(request: Request):
     trips = request.app.state.trips
     return {
         "app": "AccordOS",
-        "phase": 3,
-        "api_version": "0.3.0",
+        "phase": 4,
+        "api_version": "0.4.0",
         "connection": svc.connection_status,
         "trip": {
             "current": trips.current_trip(),
             "schema_version": request.app.state.db.schema_version(),
             "sync": "GET /api/sync?cursor=",
+        },
+        "health": {
+            "read_only": True,
+            "can_clear_codes": False,
         },
     }
 

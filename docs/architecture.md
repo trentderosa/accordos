@@ -1,29 +1,31 @@
-# AccordOS architecture (simulator + trip intelligence + sync)
+# AccordOS architecture (simulator + trips + health)
 
 ## Data flow (today)
 
 ```
 SimulatorProvider → TelemetryService → TripService (state machine)
-                         ↓                    ↓
-              FastAPI REST + WS         SQLite (schema v2)
-                         ↓                    ↓
-              GET /api/sync?cursor=     revision upserts
-                         ↓
+       │                  ↓                    ↓
+       │       FastAPI REST + WS         SQLite (schema v3)
+       │                  ↓                    ↓
+       └─ read_dtcs() → HealthService   diagnostics / trends / reminders
+                          ↓
+              GET /api/health, /api/maintenance, /api/sync
+                          ↓
               React PWA → IndexedDB trip replica + glance cache
-              Parked “Recent trips” ← replica (offline after sync)
-              Export JSON/CSV ↔ restore
+              Parked: Recent trips + Vehicle health panel
 ```
 
 Root JSON and OpenAPI live on the backend (`/`, `/docs`). Frontend never talks to the vehicle directly.
 
-- `TelemetryProvider` is the swap point for a future read-only OBD adapter.
+- `TelemetryProvider` is the swap point for a future read-only OBD adapter (`read_dtcs()` included).
 - Trip state machine: idle → starting → active → ending → finalized/recovered.
-- SQLite under `backend/storage/` (migrations to v2): `trips` (+ `revision`), `trip_samples`, `trip_checkpoints`, `sync_meta`.
+- SQLite under `backend/storage/` (migrations to v3): trips (+ revision), samples, checkpoints, sync_meta, diagnostic_events, telemetry_trend_samples, trend_state, maintenance_reminders, health_alerts.
 - Sync is Pi-authoritative with monotonic revisions and idempotent upserts by stable trip id.
-- Efficiency score is a scaffold with proposed weights; withheld when confidence is low.
+- Health explains DTCs via vetted static reference data; distinguishes code vs diagnosis; never clears codes.
+- Trend alerts use documented thresholds with hysteresis to reduce flicker.
 - IndexedDB stores last telemetry glance plus synced trip history for offline UI.
 - Dev servers bind `0.0.0.0` by default for same-LAN iPhone testing; CORS allows localhost + RFC1918 only.
-- Voice / health / maintenance endpoints are stubs that never issue vehicle commands.
+- Voice remains a stub that never issues vehicle commands.
 
 ## Modules
 
@@ -32,9 +34,9 @@ Root JSON and OpenAPI live on the backend (`/`, `/docs`). Frontend never talks t
 | `simulator/` | `SimulatorProvider` — drive cycle + demo scenarios |
 | `backend/telemetry/` | `TelemetryProvider` ABC, `TelemetrySample`, `TelemetryService` (poll + WS fan-out) |
 | `backend/trips/` | State machine, efficiency scaffold, repository, `TripService` |
-| `backend/storage/` | SQLite `Database` + migrations (v2) |
+| `backend/storage/` | SQLite `Database` + migrations (v3) |
 | `backend/api/` | REST + WebSocket routes |
-| `backend/health/` | Read-only DTC/maintenance **stubs** |
+| `backend/health/` | Read-only DTC explanations, trends, maintenance |
 | `backend/voice/` | Deterministic intent **stub** (no shell execution) |
 | `frontend/` | React PWA dashboard, hooks, IndexedDB replica + glance |
 | `deploy/` | Pi systemd / env placeholders (Phase 2+) |
@@ -81,7 +83,6 @@ Authoritative store is SQLite on the host (Pi later). Phone IndexedDB holds a sy
 
 ## What is intentionally stubbed
 
-- Health / maintenance: empty lists + honest notes.
-- Voice: fixed replies for a small intent set; unknown → graceful failure.
-- Maps / Spotify / wake word / trusted HTTPS CA: later phases.
-- Real OBD: unverified; no provider in-tree yet.
+- Voice: fixed replies for a small intent set; unknown → graceful failure (wake word / TTS later).
+- Maps / Spotify / trusted HTTPS CA: later phases.
+- Real OBD: unverified; no provider in-tree yet. Health uses simulated DTC scenarios today.

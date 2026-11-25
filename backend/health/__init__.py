@@ -1,5 +1,6 @@
-"""Vehicle health stubs (Phase 4)."""
+"""Vehicle health core (Phase 4) — read-only diagnostics and maintenance."""
 
+from .repository import HealthRepository
 from .service import HealthService
 
-__all__ = ["HealthService"]
+__all__ = ["HealthService", "HealthRepository"]

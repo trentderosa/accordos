@@ -1,6 +1,6 @@
 # AccordOS
 
-Offline-first smart vehicle platform for a 2014 Honda Accord. Runs entirely on a MacBook with a **SIMULATED** telemetry provider — no vehicle, Pi, or OBD hardware required. **Trip intelligence** journals simulated drives to SQLite.
+Offline-first smart vehicle platform for a 2014 Honda Accord. Runs entirely on a MacBook with a **SIMULATED** telemetry provider — no vehicle, Pi, or OBD hardware required. **Trip intelligence** journals simulated drives to SQLite; **health core** explains read-only diagnostic codes and telemetry trends (never clears codes).
 
 **Sunday (Nov 29) start here → [docs/sunday-pi-setup.md](docs/sunday-pi-setup.md)**  
 (Context + gates: [docs/project-context.md](docs/project-context.md) · safety: [docs/security-and-power.md](docs/security-and-power.md))
@@ -56,17 +56,20 @@ npm run dev
 Open http://127.0.0.1:5173 — Vite listens on `0.0.0.0:5173` and proxies `/api` and `/ws` to the backend on the Mac.
 
 You should see a dark charcoal cluster labeled **SIMULATED**, with demo scenario controls:
-**Idle → Cruise → Disconnect → Recover** (plus Parked / Auto). Parked mode is never inferred from 0 mph alone.
+**Idle → Cruise → Disconnect → Recover** (plus Parked / Auto) and health demos
+**Healthy / P0420 / Misfire / Overheat / Low V**. Parked mode is never inferred from 0 mph alone.
+In parked mode, open **Vehicle health** for codes, trends, and maintenance reminders.
 
 Force a scenario from the UI buttons, or via API:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/simulator/scenario \
   -H 'Content-Type: application/json' \
-  -d '{"scenario":"disconnect"}'
+  -d '{"scenario":"check_engine"}'
 ```
 
-Valid scenarios: `auto`, `parked`, `idle`, `cruise`, `disconnect`, `recover`.
+Valid scenarios: `auto`, `parked`, `idle`, `cruise`, `disconnect`, `recover`,
+`healthy`, `check_engine`, `misfire`, `overheat`, `low_voltage`.
 
 ## Try on iPhone (same Wi‑Fi / LAN)
 
@@ -130,8 +133,9 @@ Default DB: `data/accordos.db` (`ACCORDOS_DB` to override; `:memory:` for epheme
 
 ## Scope / limitations
 - Simulated drive cycle only; not real vehicle data.
-- Trip journal is live on the simulator; health / voice / maintenance remain stubs.
-- SQLite schema v2 (trips + sync revisions, samples, checkpoints). IndexedDB stores glance cache and a synced trip replica; JSON/CSV export/restore from the PWA.
+- Trip journal and health core are live on the simulator; voice remains a stub.
+- SQLite schema v3 (trips + sync revisions + diagnostic/trend/maintenance tables). IndexedDB stores glance cache and a synced trip replica; JSON/CSV export/restore from the PWA.
+- Health explains codes with vetted static reference data; codes ≠ diagnoses; AccordOS never clears DTCs.
 - No Pi deploy yet beyond sketches; trusted HTTPS, OBD, wake word, Spotify, and maps are later. See [docs/sunday-pi-setup.md](docs/sunday-pi-setup.md) and [docs/runbook-mac.md](docs/runbook-mac.md).
 - Google Fonts require network; UI falls back to local fonts offline.
 - OBD/adapter untested — do not buy hardware from this README.

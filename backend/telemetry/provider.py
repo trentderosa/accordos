@@ -32,6 +32,10 @@ class TelemetryProvider(ABC):
     def is_connected(self) -> bool:
         return False
 
+    def read_dtcs(self) -> list[str]:
+        """Active diagnostic codes (read-only). Default: none."""
+        return []
+
 
 class NullProvider(TelemetryProvider):
     """Placeholder when no provider is configured."""

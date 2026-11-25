@@ -17,9 +17,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.api.routes import router  # noqa: E402
-from backend.health import HealthService  # noqa: E402
+from backend.health import HealthRepository, HealthService  # noqa: E402
 from backend.storage import Database  # noqa: E402
 from backend.telemetry import TelemetryService  # noqa: E402
+from backend.telemetry.models import TelemetrySample  # noqa: E402
 from backend.trips import TripService  # noqa: E402
 from backend.voice import VoiceService  # noqa: E402
 from simulator import SimulatorProvider  # noqa: E402
@@ -57,8 +58,8 @@ def _default_db_path() -> Optional[Path]:
 def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
     app = FastAPI(
         title="AccordOS",
-        version="0.3.0",
-        description="Simulator-backed vehicle platform with trip intelligence",
+        version="0.4.0",
+        description="Simulator-backed vehicle platform with trip intelligence and health core",
         lifespan=lifespan,
     )
     app.add_middleware(
@@ -74,14 +75,24 @@ def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    active_provider = provider or SimulatorProvider()
     app.state.db = db if db is not None else Database(_default_db_path())
     app.state.db.connect()
     app.state.trips = TripService(app.state.db, recover_on_start=True)
-    app.state.health = HealthService()
+    app.state.health = HealthService(
+        HealthRepository(app.state.db),
+        dtc_provider=active_provider,
+        simulated=True,
+    )
     app.state.voice = VoiceService()
+
+    def _on_sample(sample: TelemetrySample) -> None:
+        app.state.trips.ingest(sample)
+        app.state.health.ingest(sample)
+
     app.state.telemetry = TelemetryService(
-        provider or SimulatorProvider(),
-        on_sample=app.state.trips.ingest,
+        active_provider,
+        on_sample=_on_sample,
     )
     app.include_router(router)
 
@@ -89,9 +100,12 @@ def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
     async def root():
         return {
             "app": "AccordOS",
-            "phase": 3,
-            "phase_note": "Trip intelligence on simulator (Phase 3 core); Pi hardware still Phase 2",
-            "api_version": "0.3.0",
+            "phase": 4,
+            "phase_note": (
+                "Health core on simulator (Phase 4 partial — voice still stub); "
+                "Pi hardware still Phase 2"
+            ),
+            "api_version": "0.4.0",
             "docs": "/docs",
             "ws": "/ws/telemetry",
             "note": "SIMULATED telemetry — not a real vehicle",
