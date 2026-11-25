@@ -30,11 +30,16 @@ async def capabilities(request: Request):
 @router.get("/api/status")
 async def status(request: Request):
     svc = request.app.state.telemetry
+    trips = request.app.state.trips
     return {
         "app": "AccordOS",
-        "phase": 1,
-        "api_version": "0.1.0",
+        "phase": 3,
+        "api_version": "0.3.0",
         "connection": svc.connection_status,
+        "trip": {
+            "current": trips.current_trip(),
+            "schema_version": request.app.state.db.schema_version(),
+        },
     }
 
 
@@ -55,7 +60,14 @@ async def telemetry_latest(request: Request):
 
 @router.get("/api/trips")
 async def list_trips(request: Request):
-    return {"trips": request.app.state.trips.list_trips(), "simulated": True}
+    trips = request.app.state.trips.list_trips()
+    return {
+        "trips": trips,
+        "count": len(trips),
+        "simulated": True,
+        "source": "sqlite",
+        "note": "Trip journal from SQLite — SIMULATED provider, not a real vehicle",
+    }
 
 
 @router.get("/api/trips/{trip_id}")

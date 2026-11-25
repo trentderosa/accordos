@@ -8,12 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import create_app
+from backend.storage import Database
 from simulator import SimulatorProvider
 
 
 @pytest.fixture
 def app():
-    return create_app(SimulatorProvider())
+    return create_app(SimulatorProvider(), db=Database())
 
 
 @pytest.fixture
@@ -27,7 +28,7 @@ def test_root(client):
     assert r.status_code == 200
     body = r.json()
     assert body["app"] == "AccordOS"
-    assert body["phase"] == 1
+    assert body["phase"] == 3
     assert "SIMULATED" in body["note"]
     assert "local network" in body.get("lan", "").lower()
 
@@ -86,7 +87,8 @@ def test_health_and_maintenance_stubs(client):
     assert client.get("/api/maintenance").status_code == 200
     trips = client.get("/api/trips").json()
     assert trips["simulated"] is True
-    assert len(trips["trips"]) >= 1
+    assert trips["source"] == "sqlite"
+    assert isinstance(trips["trips"], list)
     assert all(t.get("simulated") for t in trips["trips"])
     assert client.get("/api/sync").status_code == 200
 
@@ -104,7 +106,7 @@ def test_voice_supported_intent(client):
 
 
 def test_websocket_streams_simulated():
-    app = create_app(SimulatorProvider())
+    app = create_app(SimulatorProvider(), db=Database())
     with TestClient(app) as client:
         with client.websocket_connect("/ws/telemetry") as ws:
             msg = ws.receive_json()
@@ -160,8 +162,6 @@ def test_scenario_parked_and_invalid(client):
 
 
 def test_storage_schema_version():
-    from backend.storage import Database
-
     db = Database()
-    assert db.schema_version() == 0
+    assert db.schema_version() == 1
     db.close()

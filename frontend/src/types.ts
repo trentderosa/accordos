@@ -27,6 +27,14 @@ export type ScenarioName =
   | 'disconnect'
   | 'recover'
 
+export type TripState =
+  | 'idle'
+  | 'starting'
+  | 'active'
+  | 'ending'
+  | 'finalized'
+  | 'recovered'
+
 export interface TripStub {
   id: string
   title?: string
@@ -36,8 +44,18 @@ export interface TripStub {
   avg_speed_mph?: number | null
   max_speed_mph?: number | null
   duration_min?: number | null
+  duration_s?: number | null
+  idle_time_s?: number | null
+  idle_time_min?: number | null
+  fuel_used_pct?: number | null
+  fuel_estimate_status?: string
+  efficiency_score?: number | null
+  efficiency_confidence?: number | null
+  efficiency_status?: string
+  incomplete?: boolean
   simulated?: boolean
   status?: string
+  state?: TripState | string
   label?: string
   note?: string
 }

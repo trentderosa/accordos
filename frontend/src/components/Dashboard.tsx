@@ -269,7 +269,7 @@ export function Dashboard({
             <h2 className="parked__title">Parked</h2>
             <p className="parked__lede">
               Engine off confirmed by the simulator cycle — not inferred from 0 mph alone.
-              Trip history and health here are placeholders until Phase 3.
+              Recent trips come from the local trip journal when available.
             </p>
           </div>
 
@@ -295,21 +295,35 @@ export function Dashboard({
           <div className="parked__history">
             <div className="parked__history-head">
               <span>Recent trips</span>
-              <span className="parked__badge">Placeholder</span>
+              <span className="parked__badge">
+                {trips.length > 0 ? 'SIMULATED' : 'Waiting'}
+              </span>
             </div>
             {trips.length === 0 ? (
-              <p className="parked__empty">No trip stubs yet.</p>
+              <p className="parked__empty">
+                No trips yet — run Auto or Cruise, then Parked to finalize a simulated drive.
+              </p>
             ) : (
               <ul className="trip-list">
                 {trips.map((t) => (
                   <li key={t.id} className="trip-list__item">
                     <div className="trip-list__row">
-                      <span className="trip-list__title">{t.title ?? 'Simulated trip'}</span>
+                      <span className="trip-list__title">
+                        {t.title ?? (t.status === 'recovered' ? 'Recovered trip' : 'Trip')}
+                      </span>
                       <span className="trip-list__meta">
                         {fmt(t.distance_mi, 1)} mi · {fmt(t.duration_min, 0)} min
+                        {t.incomplete ? ' · incomplete' : ''}
                       </span>
                     </div>
-                    <div className="trip-list__when">{shortWhen(t.start)}</div>
+                    <div className="trip-list__when">
+                      {shortWhen(t.start)}
+                      {t.efficiency_status === 'available' && t.efficiency_score != null
+                        ? ` · efficiency ${fmt(t.efficiency_score, 0)}`
+                        : t.efficiency_status === 'withheld'
+                          ? ' · efficiency withheld'
+                          : ''}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -386,7 +400,7 @@ export function Dashboard({
 
       <footer className="cluster__foot">
         <span>{sample?.message ?? 'Waiting for simulator…'}</span>
-        <span className="cluster__foot-meta">Phase 1 · not a real vehicle</span>
+        <span className="cluster__foot-meta">Trip journal · not a real vehicle</span>
       </footer>
     </div>
   )

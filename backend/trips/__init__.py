@@ -1,4 +1,4 @@
-"""Trip journal stubs (Phase 3 implements persistence)."""
+"""Trip intelligence — state machine, SQLite journal, efficiency scaffold."""
 
 from .service import TripService
 

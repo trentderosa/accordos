@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Optional, Set
+from typing import Callable, Optional, Set
 
 from fastapi import WebSocket
 
@@ -17,10 +17,18 @@ logger = logging.getLogger(__name__)
 STALE_AFTER_S = 3.0
 POLL_INTERVAL_S = 0.25
 
+SampleListener = Callable[[TelemetrySample], None]
+
 
 class TelemetryService:
-    def __init__(self, provider: TelemetryProvider) -> None:
+    def __init__(
+        self,
+        provider: TelemetryProvider,
+        *,
+        on_sample: Optional[SampleListener] = None,
+    ) -> None:
         self.provider = provider
+        self._on_sample = on_sample
         self._latest: Optional[TelemetrySample] = None
         self._clients: Set[WebSocket] = set()
         self._task: Optional[asyncio.Task] = None
@@ -87,6 +95,7 @@ class TelemetryService:
                 sample = await self.provider.read()
                 self._latest = sample
                 self._last_error = None
+                self._notify(sample)
                 await self._broadcast(sample)
             except Exception as exc:  # noqa: BLE001 — surface to clients
                 self._last_error = str(exc)
@@ -97,7 +106,16 @@ class TelemetryService:
                     message=str(exc),
                     simulated=self.provider.name == "simulator",
                 )
+                self._notify(self._latest)
             await asyncio.sleep(POLL_INTERVAL_S)
+
+    def _notify(self, sample: TelemetrySample) -> None:
+        if self._on_sample is None:
+            return
+        try:
+            self._on_sample(sample)
+        except Exception:  # noqa: BLE001 — trip journal must not kill telemetry
+            logger.exception("Trip sample listener failed")
 
     async def _broadcast(self, sample: TelemetrySample) -> None:
         if not self._clients:

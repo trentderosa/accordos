@@ -1,4 +1,4 @@
-"""SQLite-ready persistence stubs (Phase 3)."""
+"""SQLite persistence with schema migrations."""
 
 from .db import Database
 

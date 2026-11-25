@@ -1,6 +1,6 @@
 # AccordOS
 
-Offline-first smart vehicle platform for a 2014 Honda Accord. **Phase 1** runs entirely on a MacBook with a **SIMULATED** telemetry provider — no vehicle, Pi, or OBD hardware required.
+Offline-first smart vehicle platform for a 2014 Honda Accord. Runs entirely on a MacBook with a **SIMULATED** telemetry provider — no vehicle, Pi, or OBD hardware required. **Trip intelligence** (Phase 3 core) journals simulated drives to SQLite.
 
 ## Quick start (macOS)
 
@@ -100,10 +100,18 @@ accordos/
   docs/
 ```
 
-## Phase 1 scope / limitations
+## Trip intelligence (simulator)
+
+Trips start from debounced engine-running evidence (RPM + communication), never from speed alone. Summaries (distance, duration, avg/max speed, idle time) land in SQLite; fuel and efficiency scores appear only when inputs/confidence allow.
+
+**Demo:** Cruise (or Auto) → optional Idle / Disconnect / Recover → Parked (~3s) → check parked **Recent trips** or `GET /api/trips`. Details: store doc `docs/trip-intelligence.md` (Cursor Project Context).
+
+Default DB: `data/accordos.db` (`ACCORDOS_DB` to override; `:memory:` for ephemeral).
+
+## Scope / limitations
 - Simulated drive cycle only; not real vehicle data.
-- Trip / health / voice / maintenance endpoints are stubs (parked UI shows placeholder history).
-- SQLite facade exists (schema v0); full trip persistence is Phase 3. IndexedDB stores last sample + connection glance for offline UI.
+- Trip journal is live on the simulator; health / voice / maintenance remain stubs.
+- SQLite schema v1 (trips, samples, checkpoints). IndexedDB still stores last sample + connection glance for offline UI.
 - No Pi deploy, trusted HTTPS, OBD, wake word, Spotify, or maps yet.
 - Google Fonts require network; UI falls back to local fonts offline.
 

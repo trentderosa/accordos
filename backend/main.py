@@ -6,6 +6,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,11 +44,21 @@ async def lifespan(app: FastAPI):
     app.state.db.close()
 
 
-def create_app(provider=None) -> FastAPI:
+def _default_db_path() -> Optional[Path]:
+    """On-disk DB for normal runs; None (in-memory) when ACCORDOS_DB=:memory:."""
+    raw = os.environ.get("ACCORDOS_DB")
+    if raw == ":memory:":
+        return None
+    if raw:
+        return Path(raw)
+    return ROOT / "data" / "accordos.db"
+
+
+def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
     app = FastAPI(
         title="AccordOS",
-        version="0.1.0",
-        description="Phase 1 simulator-backed vehicle platform API",
+        version="0.3.0",
+        description="Simulator-backed vehicle platform with trip intelligence",
         lifespan=lifespan,
     )
     app.add_middleware(
@@ -63,19 +74,24 @@ def create_app(provider=None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.state.db = Database()
+    app.state.db = db if db is not None else Database(_default_db_path())
     app.state.db.connect()
-    app.state.trips = TripService()
+    app.state.trips = TripService(app.state.db, recover_on_start=True)
     app.state.health = HealthService()
     app.state.voice = VoiceService()
-    app.state.telemetry = TelemetryService(provider or SimulatorProvider())
+    app.state.telemetry = TelemetryService(
+        provider or SimulatorProvider(),
+        on_sample=app.state.trips.ingest,
+    )
     app.include_router(router)
 
     @app.get("/")
     async def root():
         return {
             "app": "AccordOS",
-            "phase": 1,
+            "phase": 3,
+            "phase_note": "Trip intelligence on simulator (Phase 3 core); Pi hardware still Phase 2",
+            "api_version": "0.3.0",
             "docs": "/docs",
             "ws": "/ws/telemetry",
             "note": "SIMULATED telemetry — not a real vehicle",
