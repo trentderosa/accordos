@@ -12,6 +12,7 @@ import type {
   VoiceCommandResult,
   VoiceSessionInfo,
 } from '../types'
+import { InfotainmentShortcuts } from './InfotainmentShortcuts'
 import { VoiceLab } from './VoiceLab'
 
 function fmt(n: number | null | undefined, digits = 0): string {
@@ -599,6 +600,8 @@ export function Dashboard({
               )}
             </div>
 
+            <InfotainmentShortcuts parked />
+
             {onVoiceSend ? (
               <VoiceLab
                 briefing={voiceBriefing}
@@ -659,6 +662,9 @@ export function Dashboard({
         </section>
       )}
 
+      {/* Driving: clearly labeled — interactive launchers stay parked-only */}
+      {driving && !signalDown ? <InfotainmentShortcuts parked={false} /> : null}
+
       <section className="scenarios" aria-label="Simulator scenarios">
         <div className="scenarios__head">
           <span>Demo scenarios</span>
@@ -683,7 +689,7 @@ export function Dashboard({
       <footer className="cluster__foot">
         <span>{sample?.message ?? 'Waiting for simulator…'}</span>
         <span className="cluster__foot-meta">
-          Health · voice lab · trip journal · not a real vehicle
+          Health · navigate stubs · voice · trips · not a real vehicle
         </span>
       </footer>
     </div>

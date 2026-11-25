@@ -87,6 +87,6 @@ Authoritative store is SQLite on the host (Pi later). Phone IndexedDB holds a sy
 ## What is intentionally stubbed / gated
 
 - Voice: **intent routing + text Voice lab done**; wake word, ASR, TTS, and iPhone PWA background audio remain open (audio feasibility gate).
-- Maps / Spotify: deep-link and pause **stubs** only; verified launches / OAuth later.
+- Maps / Spotify: encoded deep-link + open/Siri **stubs** (see [infotainment.md](./infotainment.md)); verified launches / OAuth PKCE later with owner approval; never fabricate map/police data.
 - Trusted HTTPS CA: later phases.
 - Real OBD: unverified; no provider in-tree yet. Health uses simulated DTC scenarios today.

@@ -270,12 +270,12 @@ def test_api_trips_from_sqlite():
         assert "trips" in body
 
         status = client.get("/api/status").json()
-        assert status["phase"] == 4
+        assert status["phase"] == 5
         assert status["trip"]["schema_version"] == 3
 
         # Root reflects health-core phase
         root = client.get("/").json()
-        assert root["phase"] == 4
+        assert root["phase"] == 5
 
 
 def test_api_get_trip_404():

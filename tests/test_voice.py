@@ -255,7 +255,7 @@ def test_voice_bearer_token_when_set(client, monkeypatch):
 
 def test_status_reports_voice(client):
     body = client.get("/api/status").json()
-    assert body["api_version"] == "0.4.1"
+    assert body["api_version"] == "0.5.0"
     assert body["voice"]["audio_feasibility_gate"] == "open"
     assert body["voice"]["llm"] is False
     assert body["voice"]["wake_word"] is False

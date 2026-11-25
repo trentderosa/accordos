@@ -43,8 +43,8 @@ async def status(request: Request):
     voice = request.app.state.voice
     return {
         "app": "AccordOS",
-        "phase": 4,
-        "api_version": "0.4.1",
+        "phase": 5,
+        "api_version": "0.5.0",
         "connection": svc.connection_status,
         "trip": {
             "current": trips.current_trip(),
@@ -54,6 +54,12 @@ async def status(request: Request):
         "health": {
             "read_only": True,
             "can_clear_codes": False,
+        },
+        "infotainment": {
+            "maps": "deep_link_stubs",
+            "spotify": "open_siri_stub",
+            "oauth_pkce": "documented_not_wired",
+            "docs": "docs/infotainment.md",
         },
         "voice": {
             "intents": voice.supported(),

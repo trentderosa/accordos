@@ -2,7 +2,7 @@
 
 Base URL (Mac/Pi local): `http://127.0.0.1:8000` or `http://<lan-ip>:8000`  
 Interactive docs: `/docs`  
-API version reported in status/root: **0.4.1** (phase `4` = health core + deterministic voice intents on simulator; wake word / ASR / TTS not included; Pi hardware still Phase 2).
+API version reported in status/root: **0.5.0** (phase `5` light = encoded Waze/Apple Maps deep links + Spotify open/Siri stub on top of health + voice; no paid APIs / no client secrets; wake word / ASR / TTS not included; Pi hardware still Phase 2).
 
 All telemetry today is **SIMULATED** unless a future OBD provider is injected. Most endpoints remain trusted-LAN only. **Voice command POST** is authenticated-or-local (loopback free; non-local requires `ACCORDOS_VOICE_TOKEN`).
 
@@ -13,12 +13,17 @@ All telemetry today is **SIMULATED** unless a future OBD provider is injected. M
 ```json
 {
   "app": "AccordOS",
-  "phase": 4,
-  "phase_note": "Health + deterministic voice intents on simulator (audio feasibility gate open); Pi hardware still Phase 2",
-  "api_version": "0.4.1",
+  "phase": 5,
+  "phase_note": "Phase 5 light: maps deep-link stubs + Spotify open/Siri stub; health + voice on simulator; Pi hardware still Phase 2",
+  "api_version": "0.5.0",
   "docs": "/docs",
   "ws": "/ws/telemetry",
   "note": "SIMULATED telemetry — not a real vehicle",
+  "infotainment": {
+    "maps": "deep_link_stubs",
+    "spotify": "open_siri_stub",
+    "oauth_pkce": "documented_not_wired"
+  },
   "lan": "..."
 }
 ```
@@ -36,8 +41,8 @@ Provider-declared metrics and constraints (`read_only`, simulator flags, `can_cl
 ```json
 {
   "app": "AccordOS",
-  "phase": 4,
-  "api_version": "0.4.1",
+  "phase": 5,
+  "api_version": "0.5.0",
   "connection": { "...": "from TelemetryService" },
   "trip": {
     "current": { "...": "in-progress trip or null" },
@@ -47,6 +52,12 @@ Provider-declared metrics and constraints (`read_only`, simulator flags, `can_cl
   "health": {
     "read_only": true,
     "can_clear_codes": false
+  },
+  "infotainment": {
+    "maps": "deep_link_stubs",
+    "spotify": "open_siri_stub",
+    "oauth_pkce": "documented_not_wired",
+    "docs": "docs/infotainment.md"
   },
   "voice": {
     "intents": ["check_engine", "end_session", "fuel_level", "..."],
@@ -255,7 +266,7 @@ Body — provide `intent` and/or `text` (text is routed with deterministic patte
 Supported intents: `fuel_level`, `range_estimate`, `last_trip`, `check_engine`, `navigate_home`, `pause_spotify`, `end_session`.
 
 Unknown → `{ "ok": false, "reply": "...", "shell_executed": false, ... }`.  
-Always `shell_executed: false`. No arbitrary commands. Navigate home / Spotify return stubs only.
+Always `shell_executed: false`. No arbitrary commands. Navigate home returns **encoded** Waze/Apple Maps deep-link stubs (`launched: false`). Spotify returns open/Siri stub (`executed: false`, no client secrets). See [infotainment.md](./infotainment.md).
 
 ### `GET /api/voice/briefing`
 

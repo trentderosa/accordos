@@ -977,6 +977,139 @@ body {
   }
 }
 
+/* Infotainment — quiet Tesla-like parked shortcuts (no cards, no glow) */
+.infotainment {
+  margin-top: 1.35rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  animation: settle 0.75s ease-out both;
+}
+
+.infotainment--driving {
+  margin-top: 0.35rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--line);
+}
+
+.infotainment__driving-note {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.infotainment__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.infotainment__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.infotainment__lede {
+  margin: 0.35rem 0 0;
+  max-width: 42rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.infotainment__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.infotainment__label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.infotainment__input {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: rgba(7, 8, 10, 0.55);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.infotainment__input:focus {
+  border-color: rgba(106, 168, 216, 0.55);
+  background: rgba(7, 8, 10, 0.75);
+}
+
+.infotainment__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.infotainment__btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid rgba(106, 168, 216, 0.35);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.infotainment__btn:hover {
+  border-color: rgba(106, 168, 216, 0.65);
+  color: var(--ink);
+  background: rgba(106, 168, 216, 0.08);
+}
+
+.infotainment__btn--quiet {
+  border-color: var(--line-strong);
+}
+
+.infotainment__music {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.35rem;
+}
+
+.infotainment__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.infotainment__siri {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
 /* Voice lab — quiet parked panel, Tesla-like cluster language */
 .voice-lab {
   margin-top: 1.35rem;
@@ -1190,6 +1323,7 @@ body {
   .uncertain,
   .scenarios,
   .voice-lab,
+  .infotainment,
   .link-banner,
   .sim-tag,
   .conn--connecting .conn__dot,
