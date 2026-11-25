@@ -1,8 +1,28 @@
 # AccordOS
 
-Offline-first smart vehicle platform for a 2014 Honda Accord. Runs entirely on a MacBook with a **SIMULATED** telemetry provider — no vehicle, Pi, or OBD hardware required. **Trip intelligence** (Phase 3 core) journals simulated drives to SQLite.
+Offline-first smart vehicle platform for a 2014 Honda Accord. Runs entirely on a MacBook with a **SIMULATED** telemetry provider — no vehicle, Pi, or OBD hardware required. **Trip intelligence** journals simulated drives to SQLite.
+
+**Sunday (Nov 29) start here → [docs/sunday-pi-setup.md](docs/sunday-pi-setup.md)**  
+(Context + gates: [docs/project-context.md](docs/project-context.md) · safety: [docs/security-and-power.md](docs/security-and-power.md))
+
+## Doc index
+
+| Doc | Purpose |
+|---|---|
+| [docs/project-context.md](docs/project-context.md) | Goals, architecture summary, what’s built / next, constraints |
+| [docs/sunday-pi-setup.md](docs/sunday-pi-setup.md) | **Nov 29** step-by-step Pi day (backup, image, boot, network, run, OBD read-only, stop-and-ask gates) |
+| [docs/runbook-mac.md](docs/runbook-mac.md) | Current Mac simulator run (backend, frontend, LAN iPhone) |
+| [docs/architecture.md](docs/architecture.md) | Data flow, modules, simulator ↔ future OBD provider swap |
+| [docs/api.md](docs/api.md) | Endpoints that exist now |
+| [docs/security-and-power.md](docs/security-and-power.md) | Local-only network, ignition power, no ECU writes |
+| [docs/trip-intelligence.md](docs/trip-intelligence.md) | Trip state machine, SQLite journal, demo script |
+| [deploy/README.md](deploy/README.md) | systemd / env placeholders for Pi (no secrets) |
+
+OBD adapter compatibility is **unverified**. These docs are not a shopping list.
 
 ## Quick start (macOS)
+
+Full detail: [docs/runbook-mac.md](docs/runbook-mac.md).
 
 ### Prerequisites
 - Python 3.9+
@@ -68,7 +88,7 @@ ipconfig getifaddr en0
    Note: full trusted HTTPS for standalone PWA features is Phase 2; HTTP on LAN is fine for this Phase 1 glance.
 7. Offline glance: after a live session, kill the backend — gauges should show the **last cached** reading with an honest **Cached glance** banner (IndexedDB on the phone).
 
-**Security:** `0.0.0.0` and LAN CORS allow only localhost + private RFC1918 origins. Keep this on your **trusted local network only**. Do not port-forward, put it on a public IP, or leave it reachable from the open internet. Phase 1 has no auth.
+**Security:** `0.0.0.0` and LAN CORS allow only localhost + private RFC1918 origins. Keep this on your **trusted local network only**. Do not port-forward, put it on a public IP, or leave it reachable from the open internet. Phase 1 has no auth. Details: [docs/security-and-power.md](docs/security-and-power.md).
 
 macOS may prompt to allow incoming connections for Node/Python the first time — allow for local network.
 
@@ -95,16 +115,16 @@ accordos/
   frontend/     React + TypeScript PWA (manifest, icons, IndexedDB glance cache)
   backend/      FastAPI (telemetry, trips, health, voice, storage, api)
   simulator/    Interchangeable TelemetryProvider + demo scenarios
-  deploy/       Pi deploy placeholders (Phase 2+)
+  deploy/       Pi systemd / env sketches (Phase 2+)
   tests/
-  docs/
+  docs/         Project context, Sunday Pi, runbooks, API, security
 ```
 
 ## Trip intelligence (simulator)
 
 Trips start from debounced engine-running evidence (RPM + communication), never from speed alone. Summaries (distance, duration, avg/max speed, idle time) land in SQLite; fuel and efficiency scores appear only when inputs/confidence allow.
 
-**Demo:** Cruise (or Auto) → optional Idle / Disconnect / Recover → Parked (~3s) → check parked **Recent trips** or `GET /api/trips`. Details: store doc `docs/trip-intelligence.md` (Cursor Project Context).
+**Demo:** Cruise (or Auto) → optional Idle / Disconnect / Recover → Parked (~3s) → check parked **Recent trips** or `GET /api/trips`. Details: [docs/trip-intelligence.md](docs/trip-intelligence.md).
 
 Default DB: `data/accordos.db` (`ACCORDOS_DB` to override; `:memory:` for ephemeral).
 
@@ -112,8 +132,9 @@ Default DB: `data/accordos.db` (`ACCORDOS_DB` to override; `:memory:` for epheme
 - Simulated drive cycle only; not real vehicle data.
 - Trip journal is live on the simulator; health / voice / maintenance remain stubs.
 - SQLite schema v1 (trips, samples, checkpoints). IndexedDB still stores last sample + connection glance for offline UI.
-- No Pi deploy, trusted HTTPS, OBD, wake word, Spotify, or maps yet.
+- No Pi deploy yet beyond sketches; trusted HTTPS, OBD, wake word, Spotify, and maps are later.
 - Google Fonts require network; UI falls back to local fonts offline.
+- OBD/adapter untested — do not buy hardware from this README.
 
 ## Safety
-Read-only diagnostics by design. No clear-DTC, ECU, actuator, or steering/brake/throttle commands. Factory instruments remain authoritative.
+Read-only diagnostics by design. No clear-DTC, ECU, actuator, or steering/brake/throttle commands. Factory instruments remain authoritative. Ignition-switched power in the car — see [docs/security-and-power.md](docs/security-and-power.md).

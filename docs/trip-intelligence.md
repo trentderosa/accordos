@@ -2,6 +2,8 @@
 
 Offline-first trip journal on the Mac simulator. No vehicle hardware or Pi required.
 
+Related: [project-context.md](./project-context.md) · [api.md](./api.md) · [runbook-mac.md](./runbook-mac.md) · Sunday Pi: [sunday-pi-setup.md](./sunday-pi-setup.md)
+
 ## What landed
 
 - **State machine:** `idle → starting → active → ending → finalized` (or `recovered` after interruption).
