@@ -1,7 +1,9 @@
+import { useRef } from 'react'
 import type {
   ConnectionState,
   ScenarioName,
   TelemetrySample,
+  TripListSource,
   TripStub,
   VehicleMode,
 } from '../types'
@@ -129,6 +131,12 @@ interface Props {
   fromCache?: boolean
   cachedAt?: string | null
   trips: TripStub[]
+  tripSource?: TripListSource
+  tripStale?: boolean
+  tripLastSyncedAt?: string | null
+  onExportJson?: () => void
+  onExportCsv?: () => void
+  onRestoreFile?: (file: File) => Promise<void>
   scenario: string | null
   scenarioPending: boolean
   scenarioError: string | null
@@ -141,11 +149,18 @@ export function Dashboard({
   fromCache = false,
   cachedAt = null,
   trips,
+  tripSource = 'empty',
+  tripStale = false,
+  tripLastSyncedAt = null,
+  onExportJson,
+  onExportCsv,
+  onRestoreFile,
   scenario,
   scenarioPending,
   scenarioError,
   onScenario,
 }: Props) {
+  const restoreInputRef = useRef<HTMLInputElement>(null)
   const mode = sample?.mode ?? 'unknown'
   const driving = mode === 'driving'
   const parked = mode === 'parked'
@@ -154,10 +169,36 @@ export function Dashboard({
   // Cached offline glance still shows last numbers — only blank for true no-data signal loss
   const signalDown = noLiveSignal && !(fromCache && sample && sample.quality !== 'unavailable')
   const showCachedGauges = Boolean(fromCache && sample && sample.quality !== 'unavailable')
+  // Parked history stays available from IndexedDB replica when the backend is offline.
+  const showParked =
+    (parked && !signalDown) ||
+    (parked && showCachedGauges) ||
+    (showCachedGauges && (trips.length > 0 || tripSource === 'replica'))
   const rpmPct = clampPct(((sample?.rpm ?? 0) / RPM_SCALE) * 100)
   const fuelPct = clampPct(sample?.fuel_level_pct)
   const banner = connectionBanner(connection, sample, fromCache, cachedAt)
   const activeScenario = scenario ?? 'auto'
+
+  const tripBadge =
+    tripSource === 'live'
+      ? 'Synced'
+      : tripSource === 'replica'
+        ? tripStale
+          ? 'Offline replica'
+          : 'Replica'
+        : trips.length === 0 && !tripLastSyncedAt
+          ? 'Waiting'
+          : 'Empty'
+
+  const emptyTripsMessage = (() => {
+    if (!tripLastSyncedAt && tripSource === 'empty') {
+      return 'No trips yet — run Auto or Cruise, then Parked to finalize a simulated drive.'
+    }
+    if (tripStale || tripSource === 'replica') {
+      return 'No trips in the local replica. Export/restore if iOS cleared storage, or reconnect to sync.'
+    }
+    return 'No completed trips on this device.'
+  })()
 
   return (
     <div
@@ -263,46 +304,54 @@ export function Dashboard({
         </div>
       </main>
 
-      {parked && !signalDown ? (
+      {showParked ? (
         <section className="parked" aria-label="Parked details">
           <div className="parked__intro">
             <h2 className="parked__title">Parked</h2>
             <p className="parked__lede">
               Engine off confirmed by the simulator cycle — not inferred from 0 mph alone.
-              Recent trips come from the local trip journal when available.
+              Recent trips sync from the Pi journal into this device; offline reads use the local replica.
             </p>
           </div>
 
-          <dl className="detail__grid">
-            <div>
-              <dt>Coolant</dt>
-              <dd>{fmt(sample?.coolant_c, 1)} °C</dd>
-            </div>
-            <div>
-              <dt>Voltage</dt>
-              <dd>{fmt(sample?.voltage_v, 1)} V</dd>
-            </div>
-            <div>
-              <dt>Engine load</dt>
-              <dd>{fmt(sample?.engine_load_pct, 0)} %</dd>
-            </div>
-            <div>
-              <dt>Quality</dt>
-              <dd>{sample?.quality ?? '—'}</dd>
-            </div>
-          </dl>
+          {!signalDown || showCachedGauges ? (
+            <dl className="detail__grid">
+              <div>
+                <dt>Coolant</dt>
+                <dd>{fmt(sample?.coolant_c, 1)} °C</dd>
+              </div>
+              <div>
+                <dt>Voltage</dt>
+                <dd>{fmt(sample?.voltage_v, 1)} V</dd>
+              </div>
+              <div>
+                <dt>Engine load</dt>
+                <dd>{fmt(sample?.engine_load_pct, 0)} %</dd>
+              </div>
+              <div>
+                <dt>Quality</dt>
+                <dd>{sample?.quality ?? '—'}</dd>
+              </div>
+            </dl>
+          ) : null}
 
           <div className="parked__history">
             <div className="parked__history-head">
               <span>Recent trips</span>
-              <span className="parked__badge">
-                {trips.length > 0 ? 'SIMULATED' : 'Waiting'}
-              </span>
+              <span className="parked__badge">{tripBadge}</span>
             </div>
-            {trips.length === 0 ? (
-              <p className="parked__empty">
-                No trips yet — run Auto or Cruise, then Parked to finalize a simulated drive.
+            {tripStale && tripLastSyncedAt ? (
+              <p className="parked__sync-note">
+                Last sync {shortCacheWhen(tripLastSyncedAt)}
+                {tripSource === 'replica' ? ' · showing local replica' : ''}
               </p>
+            ) : tripSource === 'live' && tripLastSyncedAt ? (
+              <p className="parked__sync-note">
+                Synced {shortCacheWhen(tripLastSyncedAt)}
+              </p>
+            ) : null}
+            {trips.length === 0 ? (
+              <p className="parked__empty">{emptyTripsMessage}</p>
             ) : (
               <ul className="trip-list">
                 {trips.map((t) => (
@@ -328,6 +377,50 @@ export function Dashboard({
                 ))}
               </ul>
             )}
+            <div className="parked__export">
+              <button
+                type="button"
+                className="quiet-link"
+                onClick={() => onExportJson?.()}
+                disabled={!onExportJson || trips.length === 0}
+              >
+                Export JSON
+              </button>
+              <span className="parked__export-sep" aria-hidden="true">
+                ·
+              </span>
+              <button
+                type="button"
+                className="quiet-link"
+                onClick={() => onExportCsv?.()}
+                disabled={!onExportCsv || trips.length === 0}
+              >
+                Export CSV
+              </button>
+              <span className="parked__export-sep" aria-hidden="true">
+                ·
+              </span>
+              <button
+                type="button"
+                className="quiet-link"
+                onClick={() => restoreInputRef.current?.click()}
+                disabled={!onRestoreFile}
+              >
+                Restore
+              </button>
+              <input
+                ref={restoreInputRef}
+                type="file"
+                accept=".json,.csv,application/json,text/csv"
+                className="parked__file"
+                aria-label="Restore trip history"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (file && onRestoreFile) void onRestoreFile(file)
+                }}
+              />
+            </div>
           </div>
         </section>
       ) : mode === 'unknown' && !signalDown ? (

@@ -69,25 +69,69 @@ class TripService:
             trip = self.repo.get_trip(trip_id)
             return trip.to_api() if trip else None
 
-    def sync(self, cursor: Optional[str] = None) -> dict[str, Any]:
-        """Incremental sync scaffold — returns finalized/recovered trips after cursor."""
+    def sync(
+        self, cursor: Optional[str] = None, *, limit: int = 50
+    ) -> dict[str, Any]:
+        """Pi-authoritative incremental sync of completed trips.
+
+        Cursor is the last applied integer ``revision`` (string form). Use ``0``
+        or omit to pull from the beginning. Each revision is an idempotent
+        upsert keyed by stable trip ``id`` — replaying the same page is safe.
+        Open/in-progress trips are not included; only finalized/recovered.
+        """
+        page_size = max(1, min(int(limit), 200))
+        after = 0
+        if cursor is not None and str(cursor).strip() not in ("", "0"):
+            try:
+                after = int(str(cursor).strip())
+            except ValueError as exc:
+                raise ValueError(
+                    "sync cursor must be an integer revision string"
+                ) from exc
+            if after < 0:
+                raise ValueError("sync cursor must be >= 0")
+
         with self._lock:
-            trips = self.repo.list_trips(limit=200)
-            start = 0
-            if cursor:
-                for i, t in enumerate(trips):
-                    if t.id == cursor:
-                        start = i + 1
-                        break
-            window = trips[start : start + 50]
-            next_cursor = window[-1].id if window else (cursor or "0")
+            window_plus = self.repo.list_sync_trips_after(
+                after, limit=page_size + 1
+            )
+            has_more = len(window_plus) > page_size
+            window = window_plus[:page_size]
+            next_cursor = (
+                str(window[-1].revision)
+                if window and window[-1].revision is not None
+                else str(after)
+            )
             return {
-                "cursor": cursor or "0",
+                "cursor": str(after),
                 "next_cursor": next_cursor,
+                "has_more": has_more,
+                "page_size": page_size,
                 "revisions": [
-                    {"id": t.id, "state": t.state.value, "start": t.start} for t in window
+                    {
+                        "revision": t.revision,
+                        "op": "upsert",
+                        "entity": "trip",
+                        "id": t.id,
+                        "trip": t.to_api(),
+                    }
+                    for t in window
                 ],
-                "note": "Phase 3 sync scaffold — Pi remains authoritative",
+                "semantics": {
+                    "authoritative": "pi",
+                    "stable_ids": True,
+                    "idempotent_upserts": True,
+                    "cursor_field": "revision",
+                    "apply": (
+                        "Upsert each revision.trip by trip.id. Re-fetching the "
+                        "same cursor returns the same page and may be replayed."
+                    ),
+                    "offline": (
+                        "Phone replica may serve Recent Trips after a prior sync "
+                        "when the Pi is unreachable. Background PWA sync is not promised."
+                    ),
+                },
+                "note": "Pi remains authoritative — phone holds an IndexedDB replica",
             }
 
     def recover_interrupted(self) -> list[dict[str, Any]]:

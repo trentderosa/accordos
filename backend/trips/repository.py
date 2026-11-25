@@ -27,6 +27,23 @@ class TripRepository:
         self.db = db
         self.db.connect()
 
+    def allocate_revision(self) -> int:
+        """Return the next monotonic sync revision (Pi-authoritative)."""
+        conn = self.db.connect()
+        row = conn.execute(
+            "SELECT value FROM sync_meta WHERE key='next_revision'"
+        ).fetchone()
+        next_rev = int(row["value"]) if row else 1
+        conn.execute(
+            """
+            INSERT INTO sync_meta(key, value) VALUES ('next_revision', ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """,
+            (str(next_rev + 1),),
+        )
+        conn.commit()
+        return next_rev
+
     def upsert_open_trip(self, trip: OpenTrip) -> None:
         conn = self.db.connect()
         now = _iso(trip.last_ts or trip.start_ts)
@@ -92,6 +109,7 @@ class TripRepository:
         conn = self.db.connect()
         end_ts = trip.end_ts or trip.last_ts or trip.start_ts
         detail_json = json.dumps(efficiency_detail) if efficiency_detail else None
+        revision = self.allocate_revision()
         conn.execute(
             """
             INSERT INTO trips (
@@ -100,9 +118,9 @@ class TripRepository:
                 fuel_start_pct, fuel_end_pct, fuel_used_pct, fuel_estimate_status,
                 efficiency_score, efficiency_confidence, efficiency_status,
                 efficiency_detail, incomplete, simulated, source, title, note,
-                created_at, updated_at
+                created_at, updated_at, revision
             ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
             ON CONFLICT(id) DO UPDATE SET
                 state=excluded.state,
@@ -123,7 +141,8 @@ class TripRepository:
                 incomplete=excluded.incomplete,
                 title=excluded.title,
                 note=excluded.note,
-                updated_at=excluded.updated_at
+                updated_at=excluded.updated_at,
+                revision=excluded.revision
             """,
             (
                 trip.id,
@@ -150,6 +169,7 @@ class TripRepository:
                 trip.note,
                 _iso(trip.start_ts),
                 _iso(end_ts),
+                revision,
             ),
         )
         conn.commit()
@@ -256,6 +276,7 @@ class TripRepository:
         title = (
             f"Recovered trip · {start_dt.astimezone(timezone.utc).strftime('%b %d · %H:%M UTC')}"
         )
+        revision = self.allocate_revision()
         conn.execute(
             """
             UPDATE trips SET
@@ -268,7 +289,8 @@ class TripRepository:
                 note=?,
                 efficiency_status='withheld',
                 efficiency_detail=?,
-                updated_at=?
+                updated_at=?,
+                revision=?
             WHERE id=?
             """,
             (
@@ -286,6 +308,7 @@ class TripRepository:
                     }
                 ),
                 end_ts,
+                revision,
                 trip_id,
             ),
         )
@@ -305,6 +328,24 @@ class TripRepository:
         ).fetchall()
         return [self._row_to_summary(dict(r)) for r in rows]
 
+    def list_sync_trips_after(
+        self, after_revision: int, *, limit: int = 50
+    ) -> list[TripSummary]:
+        """Closed trips with revision > after_revision, ascending (sync page)."""
+        conn = self.db.connect()
+        rows = conn.execute(
+            """
+            SELECT * FROM trips
+            WHERE state IN ('finalized', 'recovered')
+              AND revision IS NOT NULL
+              AND revision > ?
+            ORDER BY revision ASC
+            LIMIT ?
+            """,
+            (after_revision, limit),
+        ).fetchall()
+        return [self._row_to_summary(dict(r)) for r in rows]
+
     def get_trip(self, trip_id: str) -> Optional[TripSummary]:
         conn = self.db.connect()
         row = conn.execute("SELECT * FROM trips WHERE id=?", (trip_id,)).fetchone()
@@ -318,6 +359,84 @@ class TripRepository:
             "SELECT 1 FROM trips WHERE id=? LIMIT 1", (trip_id,)
         ).fetchone()
         return row is not None
+
+    def upsert_trip_summary(self, summary: TripSummary) -> TripSummary:
+        """Idempotent upsert by stable trip id (phone restore / sync apply helper)."""
+        conn = self.db.connect()
+        revision = summary.revision
+        if revision is None:
+            revision = self.allocate_revision()
+        detail_json = (
+            json.dumps(summary.efficiency_detail)
+            if summary.efficiency_detail
+            else None
+        )
+        now = summary.end or summary.start
+        conn.execute(
+            """
+            INSERT INTO trips (
+                id, state, start_ts, end_ts, duration_s, distance_mi,
+                avg_speed_mph, max_speed_mph, idle_time_s,
+                fuel_start_pct, fuel_end_pct, fuel_used_pct, fuel_estimate_status,
+                efficiency_score, efficiency_confidence, efficiency_status,
+                efficiency_detail, incomplete, simulated, source, title, note,
+                created_at, updated_at, revision
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            ON CONFLICT(id) DO UPDATE SET
+                state=excluded.state,
+                start_ts=excluded.start_ts,
+                end_ts=excluded.end_ts,
+                duration_s=excluded.duration_s,
+                distance_mi=excluded.distance_mi,
+                avg_speed_mph=excluded.avg_speed_mph,
+                max_speed_mph=excluded.max_speed_mph,
+                idle_time_s=excluded.idle_time_s,
+                fuel_used_pct=excluded.fuel_used_pct,
+                fuel_estimate_status=excluded.fuel_estimate_status,
+                efficiency_score=excluded.efficiency_score,
+                efficiency_confidence=excluded.efficiency_confidence,
+                efficiency_status=excluded.efficiency_status,
+                efficiency_detail=excluded.efficiency_detail,
+                incomplete=excluded.incomplete,
+                simulated=excluded.simulated,
+                source=excluded.source,
+                title=excluded.title,
+                note=excluded.note,
+                updated_at=excluded.updated_at,
+                revision=excluded.revision
+            """,
+            (
+                summary.id,
+                summary.state.value,
+                summary.start,
+                summary.end,
+                summary.duration_s,
+                summary.distance_mi,
+                summary.avg_speed_mph,
+                summary.max_speed_mph,
+                summary.idle_time_s,
+                summary.fuel_used_pct,
+                summary.fuel_estimate_status.value,
+                summary.efficiency_score,
+                summary.efficiency_confidence,
+                summary.efficiency_status.value,
+                detail_json,
+                1 if summary.incomplete else 0,
+                1 if summary.simulated else 0,
+                summary.source,
+                summary.title,
+                summary.note,
+                summary.start,
+                now,
+                revision,
+            ),
+        )
+        conn.commit()
+        got = self.get_trip(summary.id)
+        assert got is not None
+        return got
 
     @staticmethod
     def _row_to_summary(row: dict[str, Any]) -> TripSummary:
@@ -333,6 +452,7 @@ class TripRepository:
             detail = None
 
         state = TripState(row["state"])
+        rev = row.get("revision")
         return TripSummary(
             id=row["id"],
             state=state,
@@ -362,4 +482,5 @@ class TripRepository:
             note=row.get("note"),
             label="SIMULATED" if row.get("simulated", 1) else "LIVE",
             status=state.value,
+            revision=int(rev) if rev is not None else None,
         )

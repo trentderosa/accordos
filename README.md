@@ -112,7 +112,7 @@ Preview also binds `0.0.0.0:4173` with the same `/api` + `/ws` proxy.
 
 ```
 accordos/
-  frontend/     React + TypeScript PWA (manifest, icons, IndexedDB glance cache)
+  frontend/     React + TypeScript PWA (manifest, icons, IndexedDB glance + trip replica)
   backend/      FastAPI (telemetry, trips, health, voice, storage, api)
   simulator/    Interchangeable TelemetryProvider + demo scenarios
   deploy/       Pi systemd / env sketches (Phase 2+)
@@ -124,15 +124,15 @@ accordos/
 
 Trips start from debounced engine-running evidence (RPM + communication), never from speed alone. Summaries (distance, duration, avg/max speed, idle time) land in SQLite; fuel and efficiency scores appear only when inputs/confidence allow.
 
-**Demo:** Cruise (or Auto) → optional Idle / Disconnect / Recover → Parked (~3s) → check parked **Recent trips** or `GET /api/trips`. Details: [docs/trip-intelligence.md](docs/trip-intelligence.md).
+**Demo:** Cruise (or Auto) → optional Idle / Disconnect / Recover → Parked (~3s) → **Recent trips** syncs via `GET /api/sync`; kill backend to confirm offline replica; Export JSON/CSV under the list. Details: [docs/trip-intelligence.md](docs/trip-intelligence.md).
 
 Default DB: `data/accordos.db` (`ACCORDOS_DB` to override; `:memory:` for ephemeral).
 
 ## Scope / limitations
 - Simulated drive cycle only; not real vehicle data.
 - Trip journal is live on the simulator; health / voice / maintenance remain stubs.
-- SQLite schema v1 (trips, samples, checkpoints). IndexedDB still stores last sample + connection glance for offline UI.
-- No Pi deploy yet beyond sketches; trusted HTTPS, OBD, wake word, Spotify, and maps are later.
+- SQLite schema v2 (trips + sync revisions, samples, checkpoints). IndexedDB stores glance cache and a synced trip replica; JSON/CSV export/restore from the PWA.
+- No Pi deploy yet beyond sketches; trusted HTTPS, OBD, wake word, Spotify, and maps are later. See [docs/sunday-pi-setup.md](docs/sunday-pi-setup.md) and [docs/runbook-mac.md](docs/runbook-mac.md).
 - Google Fonts require network; UI falls back to local fonts offline.
 - OBD/adapter untested — do not buy hardware from this README.
 

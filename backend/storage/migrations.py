@@ -8,7 +8,7 @@ from typing import Callable
 MigrationFn = Callable[[sqlite3.Connection], None]
 
 # Current schema version after applying all migrations below.
-TARGET_VERSION = 1
+TARGET_VERSION = 2
 
 
 def _migrate_to_1(conn: sqlite3.Connection) -> None:
@@ -76,8 +76,54 @@ def _migrate_to_1(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_to_2(conn: sqlite3.Connection) -> None:
+    """Monotonic sync revisions for Pi-authoritative incremental sync."""
+    cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(trips)").fetchall()
+    }
+    if "revision" not in cols:
+        conn.execute("ALTER TABLE trips ADD COLUMN revision INTEGER")
+
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS sync_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_trips_revision
+            ON trips(revision);
+        """
+    )
+
+    rows = conn.execute(
+        """
+        SELECT id FROM trips
+        WHERE state IN ('finalized', 'recovered')
+        ORDER BY COALESCE(updated_at, start_ts) ASC, id ASC
+        """
+    ).fetchall()
+    next_rev = 1
+    for row in rows:
+        conn.execute(
+            "UPDATE trips SET revision=? WHERE id=?",
+            (next_rev, row[0]),
+        )
+        next_rev += 1
+
+    conn.execute(
+        """
+        INSERT INTO sync_meta(key, value) VALUES ('next_revision', ?)
+        ON CONFLICT(key) DO UPDATE SET value=excluded.value
+        """,
+        (str(next_rev),),
+    )
+    conn.commit()
+
+
 MIGRATIONS: dict[int, MigrationFn] = {
     1: _migrate_to_1,
+    2: _migrate_to_2,
 }
 
 

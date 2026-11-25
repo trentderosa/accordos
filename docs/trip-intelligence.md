@@ -1,4 +1,4 @@
-# AccordOS trip intelligence (simulator Phase 3 core)
+# AccordOS trip intelligence (simulator Phase 3)
 
 Offline-first trip journal on the Mac simulator. No vehicle hardware or Pi required.
 
@@ -8,12 +8,23 @@ Related: [project-context.md](./project-context.md) · [api.md](./api.md) · [ru
 
 - **State machine:** `idle → starting → active → ending → finalized` (or `recovered` after interruption).
 - **Engine-running evidence:** RPM + communication quality, with debounce. A trip **never** ends only because speed is 0.
-- **SQLite:** schema v1 migrations (`trips`, `trip_samples`, `trip_checkpoints`); continuous samples + periodic checkpoints.
+- **SQLite:** schema v2 migrations (`trips`, `trip_samples`, `trip_checkpoints`, `sync_meta` + monotonic `revision`).
 - **Recovery:** incomplete open rows are marked `recovered` + `incomplete` after process/“power” loss.
 - **Summaries:** start/end, duration, distance (integrated speed), avg/max speed, idle time; fuel estimates only when inputs allow; otherwise honest `unavailable` / `insufficient`.
 - **Efficiency scaffold:** proposed weights (accel 25 / decel 25 / fuel 25 / engine 15 / idle 10). Score withheld with explanation when confidence is low — not a safety rating.
-- **API:** `GET /api/trips` and `GET /api/trips/{id}` read SQLite (not placeholders).
-- **UI:** parked **Recent trips** polls the real API; keeps SIMULATED labeling.
+- **API:** `GET /api/trips`, `GET /api/trips/{id}`, and Pi-authoritative `GET /api/sync?cursor=…`.
+- **Phone replica:** IndexedDB stores synced trips; parked **Recent trips** reads the local replica when the backend is offline (after a prior sync).
+- **Export / restore:** quiet JSON and CSV export + restore from the PWA (iOS eviction resilience). Background PWA sync is not promised.
+- **UI:** SIMULATED labeling retained; sync badge shows Synced / Offline replica / Waiting.
+
+## Sync contract
+
+`GET /api/sync?cursor=<revision>&limit=50`
+
+- Cursor is the last applied integer **revision** (`0` or omit to start).
+- Response includes `revisions[]` with `op: "upsert"`, stable trip `id`, full `trip` payload, `has_more`, and `next_cursor`.
+- Semantics: Pi authoritative, stable IDs, **idempotent upserts** — replaying the same page is safe.
+- Open/in-progress trips are not synced; only `finalized` / `recovered`.
 
 ## Demo a full simulated trip (end-to-end)
 
@@ -30,11 +41,14 @@ cd frontend && npm run dev
 3. Optionally tap **Idle** — speed 0 with RPM still running; trip stays active.
 4. Optionally **Disconnect** then **Recover** — trip stays open across signal loss.
 5. Tap **Parked** and wait ~3s (engine-off debounce) — trip finalizes to SQLite.
-6. Parked **Recent trips** lists the drive (distance, duration; efficiency may show “withheld”).
+6. Parked **Recent trips** lists the drive (badge **Synced** after pull).
+7. Kill the backend — Recent trips still shows the **Offline replica**.
+8. Use **Export JSON** / **Export CSV** / **Restore** under Recent trips for local backup.
 
 API check:
 
 ```bash
+curl -s 'http://127.0.0.1:8000/api/sync?cursor=0' | python3 -m json.tool
 curl -s http://127.0.0.1:8000/api/trips | python3 -m json.tool
 ```
 
@@ -46,8 +60,8 @@ DB file (default): `accordos/data/accordos.db` (override with `ACCORDOS_DB`).
 pytest -q
 ```
 
-Covers synthetic trips, zero-speed idle, disconnect, abrupt shutdown recovery, duplicate sample timestamps, and REST from SQLite.
+Covers synthetic trips, zero-speed idle, disconnect, abrupt shutdown recovery, duplicate sample timestamps, REST from SQLite, duplicate sync, cursor pagination, offline replica read after sync, and export JSON/CSV round-trip.
 
-## Out of scope (this slice)
+## Out of scope
 
-Pi deploy, voice, maps, Spotify, clearing DTCs, phone↔Pi incremental sync polish beyond the sync scaffold.
+Pi deploy, voice, maps, Spotify, clearing DTCs.

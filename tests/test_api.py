@@ -163,5 +163,5 @@ def test_scenario_parked_and_invalid(client):
 
 def test_storage_schema_version():
     db = Database()
-    assert db.schema_version() == 1
+    assert db.schema_version() == 2
     db.close()

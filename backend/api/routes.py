@@ -39,6 +39,7 @@ async def status(request: Request):
         "trip": {
             "current": trips.current_trip(),
             "schema_version": request.app.state.db.schema_version(),
+            "sync": "GET /api/sync?cursor=",
         },
     }
 
@@ -79,8 +80,15 @@ async def get_trip(trip_id: str, request: Request):
 
 
 @router.get("/api/sync")
-async def sync(request: Request, cursor: Optional[str] = None):
-    return request.app.state.trips.sync(cursor)
+async def sync(
+    request: Request,
+    cursor: Optional[str] = None,
+    limit: int = 50,
+):
+    try:
+        return request.app.state.trips.sync(cursor, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/api/health")
