@@ -1,0 +1,4 @@
+/* Global reset lives with App.css theme variables. */
+html {
+  -webkit-text-size-adjust: 100%;
+}
