@@ -1,0 +1,16 @@
+[project]
+name = "accordos-backend"
+version = "0.1.0"
+description = "AccordOS Phase 1 FastAPI backend"
+requires-python = ">=3.9"
+dependencies = [
+  "fastapi==0.115.6",
+  "uvicorn[standard]==0.32.1",
+  "pydantic==2.10.3",
+  "websockets==14.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [".."]
+testpaths = ["../tests"]
+asyncio_mode = "auto"
