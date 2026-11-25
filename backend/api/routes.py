@@ -4,17 +4,26 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, Field, model_validator
 
+from backend.voice import require_voice_access
 from simulator.provider import SimulatorProvider
 
 router = APIRouter()
 
 
 class VoiceCommand(BaseModel):
-    intent: str = Field(..., min_length=1, max_length=64)
+    intent: Optional[str] = Field(default=None, max_length=64)
     text: Optional[str] = Field(default=None, max_length=256)
+
+    @model_validator(mode="after")
+    def require_intent_or_text(self) -> "VoiceCommand":
+        intent = (self.intent or "").strip()
+        text = (self.text or "").strip()
+        if not intent and not text:
+            raise ValueError("Provide intent and/or text")
+        return self
 
 
 class ScenarioBody(BaseModel):
@@ -31,10 +40,11 @@ async def capabilities(request: Request):
 async def status(request: Request):
     svc = request.app.state.telemetry
     trips = request.app.state.trips
+    voice = request.app.state.voice
     return {
         "app": "AccordOS",
         "phase": 4,
-        "api_version": "0.4.0",
+        "api_version": "0.4.1",
         "connection": svc.connection_status,
         "trip": {
             "current": trips.current_trip(),
@@ -44,6 +54,14 @@ async def status(request: Request):
         "health": {
             "read_only": True,
             "can_clear_codes": False,
+        },
+        "voice": {
+            "intents": voice.supported(),
+            "followup_timeout_s": voice.session.timeout_s,
+            "auth": "local_or_bearer",
+            "wake_word": False,
+            "llm": False,
+            "audio_feasibility_gate": "open",
         },
     }
 
@@ -105,9 +123,37 @@ async def maintenance(request: Request):
     return request.app.state.health.maintenance()
 
 
+@router.get("/api/voice/briefing")
+async def voice_briefing(request: Request):
+    """Startup briefing from fuel + health. No previous-trip fuel cost."""
+    return request.app.state.voice.briefing()
+
+
+@router.get("/api/voice/session")
+async def voice_session(request: Request):
+    snap = request.app.state.voice.session.snapshot()
+    return {
+        "session": snap.to_api(),
+        "supported_intents": request.app.state.voice.supported(),
+        "followup_timeout_s": request.app.state.voice.session.timeout_s,
+        "audio_feasibility_gate": "open",
+        "note": (
+            "Follow-up context lasts ~15s after a reply. "
+            "PWA TTS / background audio is unproven — gate remains open."
+        ),
+    }
+
+
 @router.post("/api/voice/command")
-async def voice_command(body: VoiceCommand, request: Request):
-    return request.app.state.voice.handle(body.intent, body.text)
+async def voice_command(
+    body: VoiceCommand,
+    request: Request,
+    _auth: dict = Depends(require_voice_access),
+):
+    """Authenticated-or-local voice command. Allowlisted intents only — never shell."""
+    result = request.app.state.voice.handle(body.intent, body.text)
+    result["auth"] = _auth
+    return result
 
 
 def _simulator(request: Request) -> SimulatorProvider:

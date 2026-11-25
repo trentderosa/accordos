@@ -2,9 +2,9 @@
 
 Base URL (Mac/Pi local): `http://127.0.0.1:8000` or `http://<lan-ip>:8000`  
 Interactive docs: `/docs`  
-API version reported in status/root: **0.4.0** (phase `4` = health core on simulator; voice still stub; Pi hardware still Phase 2).
+API version reported in status/root: **0.4.1** (phase `4` = health core + deterministic voice intents on simulator; wake word / ASR / TTS not included; Pi hardware still Phase 2).
 
-All telemetry today is **SIMULATED** unless a future OBD provider is injected. No authentication yet — trusted LAN only.
+All telemetry today is **SIMULATED** unless a future OBD provider is injected. Most endpoints remain trusted-LAN only. **Voice command POST** is authenticated-or-local (loopback free; non-local requires `ACCORDOS_VOICE_TOKEN`).
 
 ## Root
 
@@ -14,8 +14,8 @@ All telemetry today is **SIMULATED** unless a future OBD provider is injected. N
 {
   "app": "AccordOS",
   "phase": 4,
-  "phase_note": "Health core on simulator (Phase 4 partial — voice still stub); Pi hardware still Phase 2",
-  "api_version": "0.4.0",
+  "phase_note": "Health + deterministic voice intents on simulator (audio feasibility gate open); Pi hardware still Phase 2",
+  "api_version": "0.4.1",
   "docs": "/docs",
   "ws": "/ws/telemetry",
   "note": "SIMULATED telemetry — not a real vehicle",
@@ -37,7 +37,7 @@ Provider-declared metrics and constraints (`read_only`, simulator flags, `can_cl
 {
   "app": "AccordOS",
   "phase": 4,
-  "api_version": "0.4.0",
+  "api_version": "0.4.1",
   "connection": { "...": "from TelemetryService" },
   "trip": {
     "current": { "...": "in-progress trip or null" },
@@ -47,6 +47,14 @@ Provider-declared metrics and constraints (`read_only`, simulator flags, `can_cl
   "health": {
     "read_only": true,
     "can_clear_codes": false
+  },
+  "voice": {
+    "intents": ["check_engine", "end_session", "fuel_level", "..."],
+    "followup_timeout_s": 15,
+    "auth": "local_or_bearer",
+    "wake_word": false,
+    "llm": false,
+    "audio_feasibility_gate": "open"
   }
 }
 ```
@@ -226,11 +234,19 @@ There is **no** clear-DTC endpoint.
 
 ---
 
-## Voice (stub)
+## Voice (deterministic intents)
+
+See [voice-intents.md](./voice-intents.md). Audio feasibility gate remains **open** (PWA TTS / background unproven).
 
 ### `POST /api/voice/command`
 
-Body:
+**Auth:** loopback client allowed without a token; non-local clients need `Authorization: Bearer <ACCORDOS_VOICE_TOKEN>` (set env `ACCORDOS_VOICE_TOKEN`).
+
+Body — provide `intent` and/or `text` (text is routed with deterministic patterns + ~15s follow-up context):
+
+```json
+{ "text": "How much fuel is left?" }
+```
 
 ```json
 { "intent": "fuel_level", "text": "optional" }
@@ -238,8 +254,16 @@ Body:
 
 Supported intents: `fuel_level`, `range_estimate`, `last_trip`, `check_engine`, `navigate_home`, `pause_spotify`, `end_session`.
 
-Unknown intent → `{ "ok": false, "reply": "I don't support that yet.", ... }`.  
-No shell execution, no arbitrary commands.
+Unknown → `{ "ok": false, "reply": "...", "shell_executed": false, ... }`.  
+Always `shell_executed: false`. No arbitrary commands. Navigate home / Spotify return stubs only.
+
+### `GET /api/voice/briefing`
+
+Startup briefing from fuel + health (maintenance note when relevant). Never includes previous-trip fuel cost. Documents the open audio feasibility gate in `note`.
+
+### `GET /api/voice/session`
+
+Follow-up window snapshot, supported intents, `audio_feasibility_gate: "open"`.
 
 ---
 
@@ -287,6 +311,7 @@ Invalid name → `400` with detail listing valid scenarios.
 | `ACCORDOS_HOST` | `0.0.0.0` | Bind host |
 | `ACCORDOS_PORT` | `8000` | Bind port |
 | `ACCORDOS_DB` | `data/accordos.db` | SQLite path; `:memory:` for ephemeral |
+| `ACCORDOS_VOICE_TOKEN` | *(unset)* | Bearer token required for non-local `POST /api/voice/command` |
 
 CORS: explicit localhost Vite ports + regex for RFC1918 private IPs. Not for public internet.
 

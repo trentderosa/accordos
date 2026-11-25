@@ -54,7 +54,7 @@ def test_schema_version_includes_health(client):
     db.close()
     status = client.get("/api/status").json()
     assert status["phase"] == 4
-    assert status["api_version"] == "0.4.0"
+    assert status["api_version"] == "0.4.1"
     assert status["health"]["can_clear_codes"] is False
     assert status["trip"]["schema_version"] == 3
 
@@ -145,5 +145,6 @@ def test_no_clear_endpoint_exists(client):
 def test_root_phase_note(client):
     body = client.get("/").json()
     assert body["phase"] == 4
-    assert body["api_version"] == "0.4.0"
+    assert body["api_version"] == "0.4.1"
     assert "health" in body["phase_note"].lower()
+    assert "voice" in body["phase_note"].lower()

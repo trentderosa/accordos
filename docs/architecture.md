@@ -1,4 +1,4 @@
-# AccordOS architecture (simulator + trips + health)
+# AccordOS architecture (simulator + trips + health + voice intents)
 
 ## Data flow (today)
 
@@ -10,9 +10,12 @@ SimulatorProvider → TelemetryService → TripService (state machine)
        └─ read_dtcs() → HealthService   diagnostics / trends / reminders
                           ↓
               GET /api/health, /api/maintenance, /api/sync
+              VoiceService ← telemetry + trips + health
+                          ↓
+              POST /api/voice/command, GET /api/voice/briefing
                           ↓
               React PWA → IndexedDB trip replica + glance cache
-              Parked: Recent trips + Vehicle health panel
+              Parked: Recent trips + Vehicle health + Voice lab
 ```
 
 Root JSON and OpenAPI live on the backend (`/`, `/docs`). Frontend never talks to the vehicle directly.
@@ -25,7 +28,7 @@ Root JSON and OpenAPI live on the backend (`/`, `/docs`). Frontend never talks t
 - Trend alerts use documented thresholds with hysteresis to reduce flicker.
 - IndexedDB stores last telemetry glance plus synced trip history for offline UI.
 - Dev servers bind `0.0.0.0` by default for same-LAN iPhone testing; CORS allows localhost + RFC1918 only.
-- Voice remains a stub that never issues vehicle commands.
+- Voice routes allowlisted intents only (local-or-bearer); never shell, never vehicle controls. See [voice-intents.md](./voice-intents.md).
 
 ## Modules
 
@@ -37,12 +40,12 @@ Root JSON and OpenAPI live on the backend (`/`, `/docs`). Frontend never talks t
 | `backend/storage/` | SQLite `Database` + migrations (v3) |
 | `backend/api/` | REST + WebSocket routes |
 | `backend/health/` | Read-only DTC explanations, trends, maintenance |
-| `backend/voice/` | Deterministic intent **stub** (no shell execution) |
-| `frontend/` | React PWA dashboard, hooks, IndexedDB replica + glance |
+| `backend/voice/` | Deterministic intent router, ~15s context, briefing, local-or-bearer auth |
+| `frontend/` | React PWA dashboard, hooks, IndexedDB replica + glance, Voice lab |
 | `deploy/` | Pi systemd / env placeholders (Phase 2+) |
-| `tests/` | pytest coverage for simulator, trips, sync, API |
+| `tests/` | pytest coverage for simulator, trips, sync, health, voice, API |
 
-App wiring: `backend/main.py` → `create_app()` constructs DB, `TripService` (recover on start), `TelemetryService(SimulatorProvider, on_sample=trips.ingest)`.
+App wiring: `backend/main.py` → `create_app()` constructs DB, `TripService` (recover on start), `HealthService`, `VoiceService`, `TelemetryService(SimulatorProvider, on_sample=trips+health)`.
 
 ## TelemetryProvider swap (simulator → future OBD)
 
@@ -81,8 +84,9 @@ Authoritative store is SQLite on the host (Pi later). Phone IndexedDB holds a sy
 - Phone → Vite (or future nginx) → proxy `/api` and `/ws` to backend.
 - Production Pi sketch: systemd for uvicorn + reverse proxy; still **local-only**. See [security-and-power.md](./security-and-power.md).
 
-## What is intentionally stubbed
+## What is intentionally stubbed / gated
 
-- Voice: fixed replies for a small intent set; unknown → graceful failure (wake word / TTS later).
-- Maps / Spotify / trusted HTTPS CA: later phases.
+- Voice: **intent routing + text Voice lab done**; wake word, ASR, TTS, and iPhone PWA background audio remain open (audio feasibility gate).
+- Maps / Spotify: deep-link and pause **stubs** only; verified launches / OAuth later.
+- Trusted HTTPS CA: later phases.
 - Real OBD: unverified; no provider in-tree yet. Health uses simulated DTC scenarios today.

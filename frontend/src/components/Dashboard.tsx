@@ -8,7 +8,11 @@ import type {
   TripListSource,
   TripStub,
   VehicleMode,
+  VoiceBriefing,
+  VoiceCommandResult,
+  VoiceSessionInfo,
 } from '../types'
+import { VoiceLab } from './VoiceLab'
 
 function fmt(n: number | null | undefined, digits = 0): string {
   if (n === null || n === undefined || Number.isNaN(n)) return '—'
@@ -147,6 +151,13 @@ interface Props {
   health?: HealthStatus | null
   maintenance?: MaintenanceStatus | null
   healthError?: string | null
+  voiceBriefing?: VoiceBriefing | null
+  voiceSession?: VoiceSessionInfo | null
+  voiceLastResult?: VoiceCommandResult | null
+  voicePending?: boolean
+  voiceError?: string | null
+  onVoiceSend?: (text: string) => Promise<unknown>
+  onVoiceRefreshBriefing?: () => void
   scenario: string | null
   scenarioPending: boolean
   scenarioError: string | null
@@ -168,6 +179,13 @@ export function Dashboard({
   health = null,
   maintenance = null,
   healthError = null,
+  voiceBriefing = null,
+  voiceSession = null,
+  voiceLastResult = null,
+  voicePending = false,
+  voiceError = null,
+  onVoiceSend,
+  onVoiceRefreshBriefing,
   scenario,
   scenarioPending,
   scenarioError,
@@ -580,6 +598,18 @@ export function Dashboard({
                 </ul>
               )}
             </div>
+
+            {onVoiceSend ? (
+              <VoiceLab
+                briefing={voiceBriefing}
+                session={voiceSession}
+                lastResult={voiceLastResult}
+                pending={voicePending}
+                error={voiceError}
+                onSend={onVoiceSend}
+                onRefreshBriefing={onVoiceRefreshBriefing}
+              />
+            ) : null}
           </div>
         </section>
       ) : mode === 'unknown' && !signalDown ? (
@@ -652,7 +682,9 @@ export function Dashboard({
 
       <footer className="cluster__foot">
         <span>{sample?.message ?? 'Waiting for simulator…'}</span>
-        <span className="cluster__foot-meta">Health · trip journal · not a real vehicle</span>
+        <span className="cluster__foot-meta">
+          Health · voice lab · trip journal · not a real vehicle
+        </span>
       </footer>
     </div>
   )
