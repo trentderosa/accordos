@@ -19,11 +19,10 @@ if str(ROOT) not in sys.path:
 from backend.api.routes import router  # noqa: E402
 from backend.health import HealthRepository, HealthService  # noqa: E402
 from backend.storage import Database  # noqa: E402
-from backend.telemetry import TelemetryService  # noqa: E402
+from backend.telemetry import TelemetryService, build_provider  # noqa: E402
 from backend.telemetry.models import TelemetrySample  # noqa: E402
 from backend.trips import TripService  # noqa: E402
 from backend.voice import VoiceService  # noqa: E402
-from simulator import SimulatorProvider  # noqa: E402
 
 # Phase 1 LAN dev: localhost + RFC1918 private IPs only.
 # Do NOT expose this API to the public internet.
@@ -58,10 +57,10 @@ def _default_db_path() -> Optional[Path]:
 def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
     app = FastAPI(
         title="AccordOS",
-        version="0.5.0",
+        version="0.6.0",
         description=(
-            "Simulator-backed vehicle platform with trip intelligence, "
-            "health core, voice intents, and Phase 5 light infotainment stubs"
+            "Vehicle platform with interchangeable SIMULATOR / OBD providers, "
+            "trip intelligence, health core, voice intents, and infotainment stubs"
         ),
         lifespan=lifespan,
     )
@@ -78,14 +77,15 @@ def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    active_provider = provider or SimulatorProvider()
+    active_provider = provider if provider is not None else build_provider()
+    is_simulated = active_provider.name == "simulator"
     app.state.db = db if db is not None else Database(_default_db_path())
     app.state.db.connect()
     app.state.trips = TripService(app.state.db, recover_on_start=True)
     app.state.health = HealthService(
         HealthRepository(app.state.db),
         dtc_provider=active_provider,
-        simulated=True,
+        simulated=is_simulated,
     )
     app.state.voice = VoiceService(health=app.state.health, trips=app.state.trips)
 
@@ -102,18 +102,31 @@ def create_app(provider=None, *, db: Optional[Database] = None) -> FastAPI:
 
     @app.get("/")
     async def root():
+        caps = active_provider.capabilities()
+        note = (
+            "SIMULATED telemetry — not a real vehicle"
+            if is_simulated
+            else "OBD provider active — adapter not connected until Sunday wiring"
+        )
         return {
             "app": "AccordOS",
             "phase": 5,
             "phase_note": (
-                "Phase 5 light: encoded Waze/Apple Maps deep links + Spotify "
-                "open/Siri stub (no paid APIs, no client secrets); "
-                "health + voice still on simulator; Pi hardware still Phase 2"
+                "Phase 2 software prep: ACCORDOS_PROVIDER=SIMULATOR|OBD; "
+                "OBD stub is read-only and honest about adapter-not-connected. "
+                "Infotainment stubs, health core, and voice intents remain available on simulator."
             ),
-            "api_version": "0.5.0",
+            "api_version": "0.6.0",
             "docs": "/docs",
             "ws": "/ws/telemetry",
-            "note": "SIMULATED telemetry — not a real vehicle",
+            "provider": active_provider.name,
+            "provider_env": "ACCORDOS_PROVIDER",
+            "note": note,
+            "capabilities_hint": {
+                "read_only": caps.get("read_only", True),
+                "can_clear_codes": False,
+                "adapter_connected": caps.get("adapter_connected"),
+            },
             "lan": (
                 "Bind with ACCORDOS_HOST=0.0.0.0 for same-LAN iPhone access. "
                 "Local network only — not for public internet."

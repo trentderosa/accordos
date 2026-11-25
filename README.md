@@ -1,6 +1,6 @@
 # AccordOS
 
-Offline-first smart vehicle platform for a 2014 Honda Accord. Runs entirely on a MacBook with a **SIMULATED** telemetry provider — no vehicle, Pi, or OBD hardware required. **Trip intelligence** journals simulated drives to SQLite; **health core** explains read-only diagnostic codes and telemetry trends (never clears codes); **voice intents** route typed commands locally (no wake-word training, no paid LLM); **infotainment stubs** provide encoded Waze/Apple Maps deep links and a Spotify open/Siri fallback (no client secrets).
+Offline-first smart vehicle platform for a 2014 Honda Accord. Default telemetry is **SIMULATOR** (`ACCORDOS_PROVIDER=SIMULATOR`) — no vehicle, Pi, or OBD hardware required. An **OBD stub** (`ACCORDOS_PROVIDER=OBD`) fails gracefully with **adapter not connected** until Sunday python-OBD wiring. **Trip intelligence** journals drives to SQLite; **health core** explains read-only diagnostic codes (never clears codes); **voice intents** route typed commands locally; **infotainment stubs** provide Waze/Apple Maps deep links and a Spotify open/Siri fallback (no client secrets).
 
 **Sunday (Nov 29) start here → [docs/sunday-pi-setup.md](docs/sunday-pi-setup.md)**  
 (Context + gates: [docs/project-context.md](docs/project-context.md) · safety: [docs/security-and-power.md](docs/security-and-power.md))
@@ -12,13 +12,14 @@ Offline-first smart vehicle platform for a 2014 Honda Accord. Runs entirely on a
 | [docs/project-context.md](docs/project-context.md) | Goals, architecture summary, what’s built / next, constraints |
 | [docs/sunday-pi-setup.md](docs/sunday-pi-setup.md) | **Nov 29** step-by-step Pi day (backup, image, boot, network, run, OBD read-only, stop-and-ask gates) |
 | [docs/runbook-mac.md](docs/runbook-mac.md) | Current Mac simulator run (backend, frontend, LAN iPhone) |
-| [docs/architecture.md](docs/architecture.md) | Data flow, modules, simulator ↔ future OBD provider swap |
+| [docs/architecture.md](docs/architecture.md) | Data flow, modules, SIMULATOR ↔ OBD provider swap |
+| [docs/obd-provider.md](docs/obd-provider.md) | TelemetryProvider contract, allowlist, OBD stub, `ACCORDOS_PROVIDER` |
 | [docs/api.md](docs/api.md) | Endpoints that exist now |
 | [docs/security-and-power.md](docs/security-and-power.md) | Local-only network, ignition power, no ECU writes |
 | [docs/trip-intelligence.md](docs/trip-intelligence.md) | Trip state machine, SQLite journal, demo script |
 | [docs/voice-intents.md](docs/voice-intents.md) | Deterministic voice routing, briefing, Voice lab, audio gate |
 | [docs/infotainment.md](docs/infotainment.md) | Waze/Apple Maps deep links, Spotify open/Siri stub, OAuth PKCE path (not wired) |
-| [deploy/README.md](deploy/README.md) | systemd / env placeholders for Pi (no secrets) |
+| [deploy/README.md](deploy/README.md) | Hardened systemd units + env placeholders for Pi (no secrets) |
 
 OBD adapter compatibility is **unverified**. These docs are not a shopping list.
 

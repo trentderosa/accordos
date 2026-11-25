@@ -1,8 +1,29 @@
 # Deploy (Raspberry Pi)
 
-Phase 2+ sketches. **Do not enable systemd until** the backend runs cleanly by hand — see [docs/sunday-pi-setup.md](../docs/sunday-pi-setup.md).
+Phase 2 sketches. **Do not enable systemd until** the backend runs cleanly by hand — see [docs/sunday-pi-setup.md](../docs/sunday-pi-setup.md).
 
 No secrets belong in this folder. Use environment files outside Git (e.g. `/etc/accordos.env` with mode `600`).
+
+## Unit files in this folder
+
+| File | Role |
+|---|---|
+| [accordos-backend.service](./accordos-backend.service) | uvicorn backend with hardening flags |
+| [accordos-frontend.service](./accordos-frontend.service) | **Optional** static `frontend/dist` serve (no `/api` proxy) |
+
+Copy after manual success:
+
+```bash
+sudo cp deploy/accordos-backend.service /etc/systemd/system/
+# optional:
+sudo cp deploy/accordos-frontend.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now accordos-backend.service
+sudo systemctl status accordos-backend.service
+journalctl -u accordos-backend -f
+```
+
+Replace `User=` / paths with the actual Linux username and clone location. If you later attach a USB OBD adapter, you may need to relax `PrivateDevices=true` and add a `DeviceAllow=` — leave closed until then.
 
 ## Environment placeholders
 
@@ -13,64 +34,38 @@ Create `/etc/accordos.env` (example — adjust user/paths):
 ACCORDOS_HOST=0.0.0.0
 ACCORDOS_PORT=8000
 ACCORDOS_DB=/home/pi/accordos/data/accordos.db
-# Future:
-# ACCORDOS_PROVIDER=simulator   # or obd when implemented
-# ACCORDOS_CORS_EXTRA=
+ACCORDOS_PROVIDER=SIMULATOR
+# Switch only when ready to exercise the OBD stub / Sunday wiring:
+# ACCORDOS_PROVIDER=OBD
+# Optional voice bearer for non-loopback clients:
+# ACCORDOS_VOICE_TOKEN=
+ACCORDOS_FRONTEND_PORT=4173
 ```
 
-| Variable | Placeholder meaning |
+| Variable | Meaning |
 |---|---|
 | `ACCORDOS_HOST` | Bind address (`0.0.0.0` LAN; prefer firewall still) |
 | `ACCORDOS_PORT` | Backend port (default `8000`) |
 | `ACCORDOS_DB` | Absolute path to SQLite file |
-| `ACCORDOS_PROVIDER` | *(future)* `simulator` \| `obd` |
+| `ACCORDOS_PROVIDER` | `SIMULATOR` (default) or `OBD` (stub until python-OBD) |
+| `ACCORDOS_VOICE_TOKEN` | Optional bearer for non-local voice POSTs |
+| `ACCORDOS_FRONTEND_PORT` | Port for optional static frontend unit |
 
 Never put Wi‑Fi passwords, SSH keys, or API client secrets in the repo or in unit files checked into Git.
 
-## systemd unit sketch — backend
+## Provider switch
 
-Save as `/etc/systemd/system/accordos-backend.service` after manual success:
+- **SIMULATOR** — default Mac/Pi path; full demo scenarios.
+- **OBD** — `ObdProvider` stub: read-only allowlist, honest `adapter not connected` until Sunday python-OBD wiring. No vehicle writes.
 
-```ini
-[Unit]
-Description=AccordOS backend (FastAPI / uvicorn)
-After=network-online.target
-Wants=network-online.target
+See [docs/obd-provider.md](../docs/obd-provider.md).
 
-[Service]
-Type=simple
-User=pi
-Group=pi
-WorkingDirectory=/home/pi/accordos
-EnvironmentFile=-/etc/accordos.env
-ExecStart=/home/pi/accordos/.venv/bin/uvicorn backend.main:app --app-dir /home/pi/accordos --host ${ACCORDOS_HOST} --port ${ACCORDOS_PORT}
-Restart=on-failure
-RestartSec=5
-# Harden lightly — expand later
-NoNewPrivileges=true
-PrivateTmp=true
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable only when ready:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now accordos-backend.service
-sudo systemctl status accordos-backend.service
-journalctl -u accordos-backend -f
-```
-
-Replace `User=` / paths with the actual Linux username and clone location.
-
-## Serving the PWA (sketch)
+## Serving the PWA
 
 Options:
 
-1. **Short-term:** `npm run preview` under a second unit or `tmux` (OK for Sunday verify).
-2. **Preferred later:** build `frontend/dist`, serve with **nginx** (or Caddy) on `:443` / `:80`, reverse-proxy `/api` and `/ws` to uvicorn.
+1. **Short-term:** `npm run preview` under tmux, or enable `accordos-frontend.service` after `npm run build` (static only — phone must call backend `:8000` for API/WS, or use Vite proxy on Mac).
+2. **Preferred:** build `frontend/dist`, serve with **nginx** (or Caddy) on `:80`, reverse-proxy `/api` and `/ws` to uvicorn.
 
 nginx location sketch (HTTP LAN only until trusted certs exist):
 
@@ -115,6 +110,7 @@ source .venv/bin/activate
 pip install -r backend/requirements.txt
 cd frontend && npm install && npm run build
 sudo systemctl restart accordos-backend
+# sudo systemctl restart accordos-frontend   # if enabled
 ```
 
 Keep `data/accordos.db` off the destructive path; never `git clean -fdx` without confirming DB backup.
@@ -123,4 +119,4 @@ Keep `data/accordos.db` off the destructive path; never `git clean -fdx` without
 
 - Local / trusted network only — see [docs/security-and-power.md](../docs/security-and-power.md).
 - No public port-forward.
-- Read-only vehicle interface forever.
+- Read-only vehicle interface forever (`can_clear_codes: false`).

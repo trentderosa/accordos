@@ -2,9 +2,9 @@
 
 Base URL (Mac/Pi local): `http://127.0.0.1:8000` or `http://<lan-ip>:8000`  
 Interactive docs: `/docs`  
-API version reported in status/root: **0.5.0** (phase `5` light = encoded Waze/Apple Maps deep links + Spotify open/Siri stub on top of health + voice; no paid APIs / no client secrets; wake word / ASR / TTS not included; Pi hardware still Phase 2).
+API version reported in status/root: **0.6.0** (Phase 2 software prep = interchangeable SIMULATOR/OBD providers + allowlist; phase `5` light infotainment stubs remain; no paid APIs / no client secrets; wake word / ASR / TTS not included; Pi hardware still Sunday).
 
-All telemetry today is **SIMULATED** unless a future OBD provider is injected. Most endpoints remain trusted-LAN only. **Voice command POST** is authenticated-or-local (loopback free; non-local requires `ACCORDOS_VOICE_TOKEN`).
+Default telemetry is **SIMULATED** (`ACCORDOS_PROVIDER=SIMULATOR`). Set `ACCORDOS_PROVIDER=OBD` for the read-only stub (honest `adapter not connected`). Most endpoints remain trusted-LAN only. **Voice command POST** is authenticated-or-local (loopback free; non-local requires `ACCORDOS_VOICE_TOKEN`).
 
 ## Root
 
@@ -15,7 +15,7 @@ All telemetry today is **SIMULATED** unless a future OBD provider is injected. M
   "app": "AccordOS",
   "phase": 5,
   "phase_note": "Phase 5 light: maps deep-link stubs + Spotify open/Siri stub; health + voice on simulator; Pi hardware still Phase 2",
-  "api_version": "0.5.0",
+  "api_version": "0.6.0",
   "docs": "/docs",
   "ws": "/ws/telemetry",
   "note": "SIMULATED telemetry — not a real vehicle",
@@ -42,7 +42,7 @@ Provider-declared metrics and constraints (`read_only`, simulator flags, `can_cl
 {
   "app": "AccordOS",
   "phase": 5,
-  "api_version": "0.5.0",
+  "api_version": "0.6.0",
   "connection": { "...": "from TelemetryService" },
   "trip": {
     "current": { "...": "in-progress trip or null" },
@@ -322,6 +322,7 @@ Invalid name → `400` with detail listing valid scenarios.
 | `ACCORDOS_HOST` | `0.0.0.0` | Bind host |
 | `ACCORDOS_PORT` | `8000` | Bind port |
 | `ACCORDOS_DB` | `data/accordos.db` | SQLite path; `:memory:` for ephemeral |
+| `ACCORDOS_PROVIDER` | `SIMULATOR` | `SIMULATOR` or `OBD` (stub until python-OBD) |
 | `ACCORDOS_VOICE_TOKEN` | *(unset)* | Bearer token required for non-local `POST /api/voice/command` |
 
 CORS: explicit localhost Vite ports + regex for RFC1918 private IPs. Not for public internet.
