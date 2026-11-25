@@ -1,6 +1,8 @@
 import { useRef } from 'react'
 import type {
   ConnectionState,
+  HealthStatus,
+  MaintenanceStatus,
   ScenarioName,
   TelemetrySample,
   TripListSource,
@@ -123,6 +125,11 @@ const SCENARIO_BUTTONS: { id: ScenarioName; label: string }[] = [
   { id: 'recover', label: 'Recover' },
   { id: 'parked', label: 'Parked' },
   { id: 'auto', label: 'Auto' },
+  { id: 'healthy', label: 'Healthy' },
+  { id: 'check_engine', label: 'P0420' },
+  { id: 'misfire', label: 'Misfire' },
+  { id: 'overheat', label: 'Overheat' },
+  { id: 'low_voltage', label: 'Low V' },
 ]
 
 interface Props {
@@ -137,6 +144,9 @@ interface Props {
   onExportJson?: () => void
   onExportCsv?: () => void
   onRestoreFile?: (file: File) => Promise<void>
+  health?: HealthStatus | null
+  maintenance?: MaintenanceStatus | null
+  healthError?: string | null
   scenario: string | null
   scenarioPending: boolean
   scenarioError: string | null
@@ -155,6 +165,9 @@ export function Dashboard({
   onExportJson,
   onExportCsv,
   onRestoreFile,
+  health = null,
+  maintenance = null,
+  healthError = null,
   scenario,
   scenarioPending,
   scenarioError,
@@ -422,6 +435,152 @@ export function Dashboard({
               />
             </div>
           </div>
+
+          <div className="parked__health" aria-label="Vehicle health">
+            <div className="parked__history-head">
+              <span>Vehicle health</span>
+              <span className="parked__badge">
+                {health?.active_dtc_count
+                  ? `${health.active_dtc_count} active`
+                  : 'Read-only'}
+              </span>
+            </div>
+            <p className="parked__health-disclaimer">
+              {health?.disclaimer ??
+                'Codes are fault flags — not confirmed diagnoses. Factory warnings remain authoritative. AccordOS never clears codes.'}
+            </p>
+            {healthError ? (
+              <p className="parked__empty">{healthError}</p>
+            ) : null}
+
+            {health?.alerts && health.alerts.length > 0 ? (
+              <ul className="health-alerts">
+                {health.alerts.map((a) => (
+                  <li
+                    key={a.id}
+                    className={`health-alerts__item health-alerts__item--${a.severity}`}
+                  >
+                    <span className="health-alerts__title">{a.title}</span>
+                    <span className="health-alerts__detail">{a.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <div className="health-dtcs">
+              <div className="parked__history-head">
+                <span>Diagnostic codes</span>
+                <span className="parked__badge">
+                  {health?.can_clear_codes === false ? 'No clear' : ''}
+                </span>
+              </div>
+              {!health?.dtcs?.length ? (
+                <p className="parked__empty">
+                  No codes reported — absence of codes is not a clean bill of health.
+                </p>
+              ) : (
+                <ul className="dtc-list">
+                  {health.dtcs.map((d) => (
+                    <li key={`${d.code}-${d.status}-${d.first_seen ?? ''}`} className="dtc-list__item">
+                      <div className="dtc-list__row">
+                        <span className={`dtc-list__code dtc-list__code--${d.severity}`}>
+                          {d.code}
+                        </span>
+                        <span className="dtc-list__status">{d.status}</span>
+                      </div>
+                      <div className="dtc-list__title">{d.title}</div>
+                      <p className="dtc-list__summary">{d.summary}</p>
+                      <p className="dtc-list__note">{d.interpretation_note}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {health?.trends && health.trends.length > 0 ? (
+              <div className="health-trends">
+                <div className="parked__history-head">
+                  <span>Telemetry trends</span>
+                </div>
+                <ul className="trend-list">
+                  {health.trends.map((t) => {
+                    const pts = t.points ?? []
+                    const max = Math.max(...pts.map((p) => p.value), 1)
+                    const min = Math.min(...pts.map((p) => p.value), 0)
+                    const span = Math.max(max - min, 0.01)
+                    return (
+                      <li key={t.metric} className="trend-list__item">
+                        <div className="trend-list__row">
+                          <span className="trend-list__label">{t.label}</span>
+                          <span className={`trend-list__status trend-list__status--${t.status}`}>
+                            {t.status}
+                          </span>
+                        </div>
+                        <div className="trend-list__readout">
+                          {t.latest != null ? `${fmt(t.latest, 1)} ${t.unit}` : '—'}
+                          {t.baseline != null ? (
+                            <span className="trend-list__base">
+                              {' '}
+                              · baseline {fmt(t.baseline, 1)}
+                            </span>
+                          ) : null}
+                        </div>
+                        {pts.length > 1 ? (
+                          <div
+                            className="spark"
+                            role="img"
+                            aria-label={`${t.label} recent trend`}
+                          >
+                            {pts.map((p, i) => (
+                              <span
+                                key={`${p.ts}-${i}`}
+                                className="spark__bar"
+                                style={{
+                                  height: `${8 + ((p.value - min) / span) * 22}px`,
+                                }}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                        <p className="trend-list__msg">{t.message}</p>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            ) : null}
+
+            <div className="health-maint">
+              <div className="parked__history-head">
+                <span>Maintenance</span>
+                <span className="parked__badge">Intervals</span>
+              </div>
+              <p className="parked__sync-note">
+                {maintenance?.note ??
+                  'Reminders use owner intervals — not fabricated odometer readings.'}
+              </p>
+              {!maintenance?.reminders?.length ? (
+                <p className="parked__empty">No reminders configured.</p>
+              ) : (
+                <ul className="maint-list">
+                  {maintenance.reminders.map((r) => (
+                    <li key={r.id} className="maint-list__item">
+                      <div className="maint-list__row">
+                        <span className="maint-list__title">{r.title}</span>
+                        <span className={`maint-list__status maint-list__status--${r.status}`}>
+                          {r.status.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <div className="maint-list__due">{r.due_label}</div>
+                      {r.last_service_label ? (
+                        <div className="maint-list__last">{r.last_service_label}</div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </section>
       ) : mode === 'unknown' && !signalDown ? (
         <section className="uncertain" aria-label="Uncertain status">
@@ -493,7 +652,7 @@ export function Dashboard({
 
       <footer className="cluster__foot">
         <span>{sample?.message ?? 'Waiting for simulator…'}</span>
-        <span className="cluster__foot-meta">Trip journal · not a real vehicle</span>
+        <span className="cluster__foot-meta">Health · trip journal · not a real vehicle</span>
       </footer>
     </div>
   )

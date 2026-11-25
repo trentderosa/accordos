@@ -26,6 +26,86 @@ export type ScenarioName =
   | 'cruise'
   | 'disconnect'
   | 'recover'
+  | 'healthy'
+  | 'check_engine'
+  | 'misfire'
+  | 'overheat'
+  | 'low_voltage'
+
+export type HealthSeverity = 'info' | 'warning' | 'critical'
+export type TrendStatus = 'ok' | 'watch' | 'alert' | 'unavailable'
+
+export interface DiagnosticCode {
+  code: string
+  title: string
+  summary: string
+  common_causes?: string[]
+  interpretation: 'code'
+  interpretation_note: string
+  severity: HealthSeverity
+  system: string
+  reference_found?: boolean
+  status: 'active' | 'historical'
+  first_seen?: string | null
+  last_seen?: string | null
+  source?: string
+  simulated?: boolean
+}
+
+export interface TelemetryTrend {
+  metric: string
+  unit: string
+  label: string
+  latest?: number | null
+  baseline?: number | null
+  status: TrendStatus
+  message: string
+  points?: { ts: string; value: number }[]
+  hysteresis_note?: string | null
+}
+
+export interface HealthAlert {
+  id: string
+  severity: HealthSeverity
+  title: string
+  detail: string
+  metric?: string | null
+  active?: boolean
+  simulated?: boolean
+}
+
+export interface HealthStatus {
+  dtcs: DiagnosticCode[]
+  alerts: HealthAlert[]
+  trends: TelemetryTrend[]
+  active_dtc_count: number
+  read_only: boolean
+  can_clear_codes: boolean
+  simulated: boolean
+  disclaimer: string
+  note: string
+  schema_version?: number
+}
+
+export interface MaintenanceReminder {
+  id: string
+  title: string
+  kind: string
+  due_label: string
+  interval_mi?: number | null
+  interval_months?: number | null
+  last_service_label?: string | null
+  status: 'upcoming' | 'due_soon' | 'overdue' | 'unknown'
+  note?: string | null
+  simulated?: boolean
+  source?: string
+}
+
+export interface MaintenanceStatus {
+  reminders: MaintenanceReminder[]
+  simulated: boolean
+  note: string
+}
 
 export type TripState =
   | 'idle'

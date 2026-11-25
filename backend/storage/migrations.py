@@ -8,7 +8,7 @@ from typing import Callable
 MigrationFn = Callable[[sqlite3.Connection], None]
 
 # Current schema version after applying all migrations below.
-TARGET_VERSION = 2
+TARGET_VERSION = 3
 
 
 def _migrate_to_1(conn: sqlite3.Connection) -> None:
@@ -121,9 +121,89 @@ def _migrate_to_2(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_to_3(conn: sqlite3.Connection) -> None:
+    """Health core: diagnostic history, telemetry trends, maintenance reminders."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS diagnostic_events (
+            id TEXT PRIMARY KEY,
+            code TEXT NOT NULL,
+            status TEXT NOT NULL,
+            title TEXT,
+            summary TEXT,
+            explanation_json TEXT,
+            severity TEXT,
+            system TEXT,
+            first_seen TEXT NOT NULL,
+            last_seen TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'simulator',
+            simulated INTEGER NOT NULL DEFAULT 1,
+            note TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_diagnostic_events_code_status
+            ON diagnostic_events(code, status);
+
+        CREATE TABLE IF NOT EXISTS telemetry_trend_samples (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            metric TEXT NOT NULL,
+            ts TEXT NOT NULL,
+            value REAL NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_trend_samples_metric_ts
+            ON telemetry_trend_samples(metric, ts);
+
+        CREATE TABLE IF NOT EXISTS trend_state (
+            metric TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            latest REAL,
+            baseline REAL,
+            message TEXT,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS maintenance_reminders (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            due_label TEXT NOT NULL,
+            interval_mi REAL,
+            interval_months INTEGER,
+            last_service_label TEXT,
+            status TEXT NOT NULL DEFAULT 'unknown',
+            note TEXT,
+            simulated INTEGER NOT NULL DEFAULT 1,
+            source TEXT NOT NULL DEFAULT 'user_interval',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS health_alerts (
+            id TEXT PRIMARY KEY,
+            alert_key TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            title TEXT NOT NULL,
+            detail TEXT NOT NULL,
+            metric TEXT,
+            active INTEGER NOT NULL DEFAULT 1,
+            simulated INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_health_alerts_key_active
+            ON health_alerts(alert_key, active);
+        """
+    )
+
+
 MIGRATIONS: dict[int, MigrationFn] = {
     1: _migrate_to_1,
     2: _migrate_to_2,
+    3: _migrate_to_3,
 }
 
 

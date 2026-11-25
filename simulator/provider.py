@@ -26,8 +26,41 @@ PHASES = (
 )
 CYCLE_LEN = sum(p[1] for p in PHASES)
 
-ScenarioName = Literal["auto", "parked", "idle", "cruise", "disconnect", "recover"]
-VALID_SCENARIOS = ("auto", "parked", "idle", "cruise", "disconnect", "recover")
+ScenarioName = Literal[
+    "auto",
+    "parked",
+    "idle",
+    "cruise",
+    "disconnect",
+    "recover",
+    "healthy",
+    "check_engine",
+    "misfire",
+    "overheat",
+    "low_voltage",
+]
+VALID_SCENARIOS = (
+    "auto",
+    "parked",
+    "idle",
+    "cruise",
+    "disconnect",
+    "recover",
+    "healthy",
+    "check_engine",
+    "misfire",
+    "overheat",
+    "low_voltage",
+)
+
+# Fake DTC sets for demo scenarios — read-only; never cleared by AccordOS.
+SCENARIO_DTCS: dict[str, tuple[str, ...]] = {
+    "healthy": (),
+    "check_engine": ("P0420",),
+    "misfire": ("P0300", "P0171"),
+    "overheat": ("P0128",),
+    "low_voltage": ("P0562",),
+}
 
 
 def _phase_at(t: float) -> tuple[str, float]:
@@ -54,6 +87,7 @@ class SimulatorProvider(TelemetryProvider):
         self._scenario: ScenarioName = "auto"
         self._signal_lost = False
         self._elapsed_hold: float | None = None
+        self._dtcs: list[str] = []
 
     async def connect(self) -> None:
         self._connected = True
@@ -88,6 +122,8 @@ class SimulatorProvider(TelemetryProvider):
             self._elapsed_hold = None
             self._signal_lost = False
             self._scenario = "auto"
+            # Recover restores the drive cycle only — DTCs are not cleared here
+            # (AccordOS never clears codes; ECU-side clear is out of scope).
         elif key == "disconnect":
             if not self._signal_lost:
                 self._elapsed_hold = time.monotonic() - self._t0
@@ -100,8 +136,17 @@ class SimulatorProvider(TelemetryProvider):
             # Pin scenario start so demos are immediate and stable.
             if key != "auto":
                 self._t0 = time.monotonic()
+            if key in SCENARIO_DTCS:
+                self._dtcs = list(SCENARIO_DTCS[key])
+            elif key == "auto":
+                # Auto cycle does not invent faults.
+                self._dtcs = []
 
         return self.scenario()
+
+    def read_dtcs(self) -> list[str]:
+        """Return active simulated diagnostic codes (read-only)."""
+        return list(self._dtcs)
 
     def capabilities(self) -> dict:
         return {
@@ -116,9 +161,15 @@ class SimulatorProvider(TelemetryProvider):
                 "coolant_c",
                 "engine_load_pct",
                 "voltage_v",
+                "dtc_codes",
             ],
             "unsupported": ["odometer", "oil_life", "tire_pressure"],
-            "notes": "Phase 1 simulator — not real vehicle data",
+            "notes": (
+                "Simulator — not real vehicle data. "
+                "DTC scenarios are fake and read-only; AccordOS never clears codes."
+            ),
+            "can_clear_codes": False,
+            "read_dtcs": True,
         }
 
     async def read(self) -> TelemetrySample:
@@ -145,7 +196,19 @@ class SimulatorProvider(TelemetryProvider):
         coolant = 85.0 if mode != VehicleMode.PARKED else _lerp(25.0, 70.0, min(1.0, elapsed / 30.0))
         voltage = 14.2 if rpm and rpm > 500 else 12.4
 
+        # Fault demos bend vitals while keeping the drive cycle readable.
+        if self._scenario == "overheat":
+            coolant = _lerp(95.0, 112.0, min(1.0, elapsed / 8.0))
+            mode = VehicleMode.PARKED if phase == "parked" else mode
+        elif self._scenario == "low_voltage":
+            voltage = _lerp(12.0, 11.5, min(1.0, elapsed / 6.0))
+        elif self._scenario in ("check_engine", "misfire", "healthy"):
+            # Keep parked for the health panel demo unless user switches elsewhere.
+            if self._scenario != "healthy" or phase == "parked":
+                pass
+
         label = phase if self._scenario == "auto" else self._scenario
+        dtc_note = f" · {len(self._dtcs)} DTC" if self._dtcs else ""
         return TelemetrySample(
             timestamp=datetime.now(timezone.utc),
             source="simulator",
@@ -158,7 +221,7 @@ class SimulatorProvider(TelemetryProvider):
             voltage_v=round(voltage, 1),
             mode=mode,
             simulated=True,
-            message=f"SIMULATED · {label}",
+            message=f"SIMULATED · {label}{dtc_note}",
         )
 
     def _resolve_phase(self, elapsed: float) -> tuple[str, float]:
@@ -168,6 +231,9 @@ class SimulatorProvider(TelemetryProvider):
             return "idle", min(1.0, elapsed / 4.0)
         if self._scenario == "cruise":
             return "cruise", (elapsed % 12.0) / 12.0
+        # Health demos default to parked so the panel is visible immediately.
+        if self._scenario in ("healthy", "check_engine", "misfire", "overheat", "low_voltage"):
+            return "parked", min(1.0, elapsed / 4.0)
         return _phase_at(elapsed)
 
     @staticmethod

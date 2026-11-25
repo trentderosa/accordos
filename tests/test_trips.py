@@ -64,9 +64,9 @@ def trips(db):
     return TripService(db, recover_on_start=True)
 
 
-def test_schema_migrates_to_v2(db):
-    assert db.schema_version() == 2
-    assert db.target_version == 2
+def test_schema_migrates_to_v3(db):
+    assert db.schema_version() == 3
+    assert db.target_version == 3
 
 
 def test_engine_evidence_requires_rpm_and_comm():
@@ -270,12 +270,12 @@ def test_api_trips_from_sqlite():
         assert "trips" in body
 
         status = client.get("/api/status").json()
-        assert status["phase"] == 3
-        assert status["trip"]["schema_version"] == 2
+        assert status["phase"] == 4
+        assert status["trip"]["schema_version"] == 3
 
-        # Root reflects trip-intelligence phase
+        # Root reflects health-core phase
         root = client.get("/").json()
-        assert root["phase"] == 3
+        assert root["phase"] == 4
 
 
 def test_api_get_trip_404():

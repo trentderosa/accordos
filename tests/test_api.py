@@ -28,7 +28,7 @@ def test_root(client):
     assert r.status_code == 200
     body = r.json()
     assert body["app"] == "AccordOS"
-    assert body["phase"] == 3
+    assert body["phase"] == 4
     assert "SIMULATED" in body["note"]
     assert "local network" in body.get("lan", "").lower()
 
@@ -163,5 +163,5 @@ def test_scenario_parked_and_invalid(client):
 
 def test_storage_schema_version():
     db = Database()
-    assert db.schema_version() == 2
+    assert db.schema_version() == 3
     db.close()
